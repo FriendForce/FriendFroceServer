@@ -2,6 +2,7 @@ from flask import Flask
 from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_script import Manager
 import logging
 from logging.handlers import SMTPHandler, RotatingFileHandler
 import os
@@ -10,6 +11,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 
 if not app.debug and not app.testing:
         if app.config['LOG_TO_STDOUT']:

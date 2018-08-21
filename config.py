@@ -9,6 +9,8 @@ class Config(object):
     SECRET_KEY = 'this-really-needs-to-be-changed'
     SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
     LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    MIGRATION_DIR = os.path.join(basedir, 'migrations')
 
 
 class ProductionConfig(Config):
