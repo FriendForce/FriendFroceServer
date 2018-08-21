@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 app.config.from_object(Config)
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+migrate = Migrate(app, db, directory=app.config['MIGRATION_DIR'])
 
 
 if not app.debug and not app.testing:
