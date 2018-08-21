@@ -9,6 +9,7 @@ import os
 app = Flask(__name__)
 app.config.from_object(Config)
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 if not app.debug and not app.testing:
         if app.config['LOG_TO_STDOUT']:
