@@ -1,1 +1,1 @@
-web: web: flask db upgrade; gunicorn friendforce:app
+web: gunicorn friendforce:app
