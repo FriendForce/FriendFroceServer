@@ -61,6 +61,17 @@ def create_label_from_tag(tag):
         return label
 
 
+@app.route('/api/tag/delete', methods=['POST'])
+def delete_tag():
+    data = request.get_json() or {}
+    if 'id' in data:
+        q = Tag.query.filter(Tag.slug == data['id']).delete()
+        db.session.commit()
+        return jsonify({'action':'delete', 'id':data['id']})
+    else:
+        return jsonify('error: no id')
+
+
 
 @app.route('/api/tag', methods=['POST'])
 def create_tag():
