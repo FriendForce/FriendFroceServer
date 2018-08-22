@@ -60,27 +60,39 @@ def create_label_from_tag(tag):
 @app.route('/api/tag', methods=['POST'])
 def create_tag():
     data = request.get_json() or {}
-    if not 'originator' in data or not 'subject' in data or not 'text' in data:
-        return "ERROR: missing required field"
-    # Originator and Subject will both be slugs
-    originator = Person.query.filter(Person.slug==data['originator'])[0]
-    subject = Person.query.filter(Person.slug==data['subject'])[0]
+    print ("got tag request")
+    print (data)
     tag = Tag()
-    tag.originator = originator.id
-    tag.subject = subject.id
-    tag.subject_slug = subject.slug
-    tag.originator_slug = originator.slug
-    tag.text = data['text']
-    tag.type = find_tag_type(tag.text)
-    tag.slug = slugify.slugify("%s %s %s"%(originator.slug, subject.slug, data['text']))
+    # Check if tag already exists - this check should be more elaborate
+    if 'id' in data:
+        q = Tag.query.filter(Tag.slug == data['id'])
+        if q.count() > 0:
+            tag = q[0]
+            tag.updated = datetime.datetime.now()
+    if 'originator' in data:
+        originator = Person.query.filter(Person.slug==data['originator'])[0]
+        tag.originator = originator.id
+        tag.originator_slug = originator.slug
+    if 'subject' in data:
+        subject = Person.query.filter(Person.slug==data['subject'])[0]
+        tag.subject = subject.id
+        tag.subject_slug = subject.slug
+    if 'text' or 'label' in data:
+        if 'label' in data:
+            tag.text = data['label']
+        else:
+            tag.text = data['text']
+        tag.type = find_tag_type(tag.text)
+        #Create a label
+        label = create_label_from_tag(tag)
+        db.session.add(label)
+        tag.label = label.id
     if 'publicity' in data:
         tag.publicity = data['publicity']
     else:
         tag.publicity = 'public'
-    label = create_label_from_tag(tag)
-    db.session.add(label)
-    tag.label = label.id
-    response = jsonify(tag.json())
+    tag.slug = slugify.slugify("%s %s %s"%(tag.originator_slug, tag.subject_slug, tag.text))
+    response = jsonify(tag.to_deliverable())
     db.session.add(tag)
     db.session.commit()
     return response
