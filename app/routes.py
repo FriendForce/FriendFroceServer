@@ -24,22 +24,27 @@ def create_new_person(person_name):
 def create_person():
     data = request.get_json() or {}
     person = Person()
+    print ("got person")
+    print (data)
+    if 'id' in data:
+        q = Person.query.filter(Person.slug == data['id'])
+        if q.count() > 0:
+            person = q[0]
+            person.updated = datetime.datetime.now()
 
-    if 'slug' in data:
-        #handle the fact that it's a known person
-        person.slug = data['slug']
+    if 'first_name' not in data and 'last_name' not in data and 'name' not in data:
+        return "ERROR: missing required field"
+    person = Person()
+    if 'name' in data:
+        person.first_name = data['name'].split(' ')[0].title()
+        person.last_name = data['name'].split(' ')[1].title()
     else:
-        if 'first_name' not in data or 'last_name' not in data:
-            return "ERROR: missing required field"
-        person = Person()
         person.first_name = data['first_name'].title()
         person.last_name = data['last_name'].title()
-        pre_slug = "%s %s %d"%(data['first_name'].lower(), data['last_name'].lower(),random.randint(0,10000000))
-        person.slug = slugify.slugify(pre_slug)
-    if 'is_user' in data:
-        person.is_user = data.is_user
+    pre_slug = "%s %s %d"%(person.first_name.lower(), person.last_name.lower(),random.randint(0,10000000))
+    person.slug = slugify.slugify(pre_slug)
     #weird thing: need to create the response before committing object?
-    response = jsonify(person.json())
+    response = jsonify(person.to_deliverable())
     db.session.add(person)
     db.session.commit()
     return response
