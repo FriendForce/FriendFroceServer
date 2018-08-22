@@ -3,11 +3,13 @@ from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_script import Manager
+from flask_cors import CORS
 import logging
 from logging.handlers import SMTPHandler, RotatingFileHandler
 import os
 
 app = Flask(__name__)
+CORS(app)
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 #migrate = Migrate(app, db, directory=app.config['MIGRATION_DIR'])
