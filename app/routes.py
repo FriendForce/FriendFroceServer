@@ -1,9 +1,88 @@
 from flask import jsonify, request, url_for
 from app import app, db
-from app.models import Person, Tag, Label
+from app.models import Person, Tag, Label, Account
 import json
 import slugify
 import random
+import firebase_admin
+from firebase_admin import credentials, auth
+from datetime import datetime
+
+cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
+firebase_admin.initialize_app(cred)
+
+def create_account_from_token(token):
+    account = Account()
+    account.firebase_user_id = token['uid']
+    account.email = token['email']
+    account.email_verified = token['email_verified']
+    account.name = token['name']
+    account.photo_url = token['picture']
+    account.updated = datetime.now()
+    db.session.add(account)
+    db.session.commit()
+    return account
+
+def associate_account_with_person(account):
+    if account.person is not None:
+        return account.person
+    #For now do naive thing and assume we won't have name collisions
+    names = account.name.split(' ')
+    name_matches = Person.query.filter(Person.first_name==names[0] and Person.last_name==names[end] and Person.is_user==False)
+    person_id = -1
+    if name_matches.count() == 0:
+        # Create a person
+        print("creating a person for the account")
+        person = Person()
+        person.first_name = names[0]
+        person.last_name = names[end]
+        person.slug = person.create_slug()
+        person.photo_url = account.photo_url
+        person.is_user = True
+        db.session.add(person)
+        person_id = person.id
+        account.add_person(person_id)
+        db.session.add(account)
+        db.commit()
+    elif name_matches.count() == 1:
+        # Associate account with person
+        # TODO make it so you can have multiple accounts associated
+        # with the same person
+        print("associating single person with account")
+        person = name_matches[0]
+        person.is_user = True
+        if person.photo_url is None or len(person.photo_url) is 0:
+            person.photo_url = account.photo_url
+        person.updated = datetime.now()
+
+        db.session.add(person)
+        person_id = person.id
+        account.add_person(person_id)
+        db.session.add(account)
+        db.session.commit()
+    elif name_matches.count() > 1:
+        print("Multiple people with same name")
+    return person_id
+
+
+def get_account_and_person(undecoded_token):
+    decoded_token = auth.verify_id_token(undecoded_token)
+    account = Account.query.filter(Account.email==decoded_token['email'])
+    account_id = -1
+    person_id = -1
+    if account.count() is 1:
+        print("found existing account for %s"%decoded_token["email"])
+        account_id = account[0].id
+        person_id = account[0].person
+    return (account_id, person_id)
+
+def create_account_and_person(undecoded_token):
+    decoded_token = auth.verify_id_token(undecoded_token)
+    account = create_account_from_token(decoded_token)
+    account_id = account.id
+    person_id = associate_account_with_person(account)
+    return (account_id, person_id)
+
 
 def find_tag_type(tag_text):
     return "generic"
@@ -23,9 +102,11 @@ def create_new_person(person_name):
 @app.route('/api/person', methods=['POST'])
 def create_person():
     data = request.get_json() or {}
+    (account_id, person_id) = get_account_and_person(data['token'])
     person = Person()
     print ("got person")
     print (data)
+    #handle an updated person
     if 'id' in data:
         q = Person.query.filter(Person.slug == data['id'])
         if q.count() > 0:
@@ -44,8 +125,13 @@ def create_person():
     pre_slug = "%s %s %d"%(person.first_name.lower(), person.last_name.lower(),random.randint(0,10000000))
     person.slug = slugify.slugify(pre_slug)
     #weird thing: need to create the response before committing object?
-    response = jsonify(person.to_deliverable())
     db.session.add(person)
+
+    #Create a tag indicating who created this person
+    tag = Tag()
+
+    db.session.add(tag)
+    response = jsonify(person.to_deliverable())
     db.session.commit()
     return response
 
@@ -71,46 +157,56 @@ def delete_tag():
     else:
         return jsonify('error: no id')
 
+def create_tag(subject_id, originator_id, text, publicity="public"):
+    tag = Tag()
+    tag.originator = originator_id
+    tag.originator_slug = Person.query.filter(Person.id==originator_id)[0].slug
+    tag.subject = subject_id
+    tag.subject_slug = Person.query.filter(Person.id==subject_id)[0].slug
+    tag.text = text
+    label = create_label_from_tag(tag)
+    db.session.add(label)
+    tag.label = label.id
+    tag.publicity = publicity
+    tag.slug = tag.create_slug()
+    return tag
+
 
 
 @app.route('/api/tag', methods=['POST'])
-def create_tag():
+def create_tag_request():
+    print("got tag create request")
     data = request.get_json() or {}
-    print ("got tag request")
-    print (data)
-    tag = Tag()
+    (account_id, person_id) = get_account_and_person(data['token'])
     # Check if tag already exists - this check should be more elaborate
     if 'id' in data:
         q = Tag.query.filter(Tag.slug == data['id'])
         if q.count() > 0:
             tag = q[0]
             tag.updated = datetime.datetime.now()
-    if 'originator' in data:
-        originator = Person.query.filter(Person.slug==data['originator'])[0]
-        tag.originator = originator.id
-        tag.originator_slug = originator.slug
+    subject = -1
     if 'subject' in data:
         subject = Person.query.filter(Person.slug==data['subject'])[0]
-        tag.subject = subject.id
-        tag.subject_slug = subject.slug
+    else:
+        print("Error could not create tag becasue no subject")
+        return -1
+    text = ""
     if 'text' or 'label' in data:
         if 'label' in data:
-            tag.text = data['label']
+            text = data['label']
         else:
-            tag.text = data['text']
-        tag.type = find_tag_type(tag.text)
-        #Create a label
-        label = create_label_from_tag(tag)
-        db.session.add(label)
-        tag.label = label.id
-    if 'publicity' in data:
-        tag.publicity = data['publicity']
+            text = data['text']
     else:
-        tag.publicity = 'public'
-    tag.slug = slugify.slugify("%s %s %s"%(tag.originator_slug, tag.subject_slug, tag.text))
-    response = jsonify(tag.to_deliverable())
+        print("Error could not create tag becasue no text")
+        return -1
+    publicity = "public"
+    if 'publicity' in data:
+        publicity = data['publicity']
+    tag = create_tag(subject.id, person_id, text, publicity=publicity)
     db.session.add(tag)
+    response = jsonify(tag.to_deliverable())
     db.session.commit()
+    print("Created tag")
     return response
 
 @app.route('/api/labels', methods=['POST'])
@@ -120,13 +216,23 @@ def get_labels():
     labels_out = list(map(lambda label: label.text, labels))
     return jsonify(labels_out)
 
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    (account_id, person_id) = get_account_and_person(data['token'])
+    new_account = False
+    if account_id is -1:
+        (account_id, person_id) = create_account_and_person(data['token'])
+        new_account = True
+    person = Person.query.filter(Person.id == person_id)[0]
+    return jsonify({'person':person.to_deliverable(), 'new_account':new_account})
+
+
 @app.route('/api/known_tags', methods=['POST'])
 def find_known_tags():
     data = request.get_json() or {}
-    if not 'user' in data:
-        return "ERROR: missing required field"
-    user_id = Person.query.filter(Person.slug==data['user'])[0].id
-    user_tags = Tag.query.filter(Tag.originator==user_id or Tag.publicity=='public').all()
+    (account_id, person_id) = get_account_and_person(data['token'])
+    user_tags = Tag.query.filter(Tag.originator==person_id or Tag.publicity=='public').all()
     tags = list(map(lambda tag: tag.to_deliverable(), user_tags))
     return jsonify(tags)
 
@@ -134,11 +240,10 @@ def find_known_tags():
 @app.route('/api/known_persons', methods=['POST'])
 def find_known_persons():
     data = request.get_json() or {}
-    if not 'user' in data:
-        return "ERROR: missing required field"
-    user_id = Person.query.filter(Person.slug==data['user'])[0].id
-    user_tags = Tag.query.filter(Tag.originator==user_id).all()
+    (account_id, person_id) = get_account_and_person(data['token'])
+    user_tags = Tag.query.filter(Tag.originator==person_id).all()
     ids = set(map(lambda tag:tag.subject, user_tags))
+    ids.add(person_id) # make sure people know about themselves
     persons = list(map(lambda person:person.to_deliverable(), Person.query.filter(Person.id.in_(ids)).all()))
     response = jsonify(persons)
     return response

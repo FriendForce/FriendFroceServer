@@ -1,6 +1,8 @@
 from datetime import datetime
 from app import db
 from flask_login import UserMixin
+import slugify
+import random
 
 
 class BaseModel(db.Model):
@@ -25,15 +27,30 @@ class BaseModel(db.Model):
 
 #Work from here
 
-class Account(BaseModel, UserMixin, db.Model):
+class Account(BaseModel, db.Model):
     __tablename__ = 'account'
-    account_id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     firebase_user_id = db.Column(db.String(), unique=True)
     email = db.Column(db.String(), unique=True, nullable=False)
     email_verified = db.Column(db.Boolean, default=False, nullable=False)
     name = db.Column(db.String())
     photo_url = db.Column(db.String())
     person = db.Column(db.Integer, db.ForeignKey('person.id'))
+    created = db.Column(db.DateTime(), default=datetime.utcnow)
+    updated = db.Column(db.DateTime(), default=datetime.utcnow)
+
+    def from_firebase_token(self, token):
+        self.firebase_user_id = token['uid']
+        self.email = token['email']
+        self.email_verified = token['email_verified']
+        self.name = token['name']
+        self.photo_url = token['picture']
+        self.updated = datetime.now()
+
+    def add_person(self, person_id):
+        self.person = person_id
+        self.updated = datetime.now()
+
 
 
 class Person(BaseModel, db.Model):
@@ -47,13 +64,19 @@ class Person(BaseModel, db.Model):
     created = db.Column(db.DateTime(), default=datetime.utcnow)
     updated = db.Column(db.DateTime(), default=datetime.utcnow)
     is_user = db.Column(db.Boolean(), default=False)
+    photo_url = db.Column(db.String())
 
     def to_deliverable(self):
         deliverable = {}
         deliverable['last_name'] = self.last_name
         deliverable['first_name'] = self.first_name
         deliverable['slug'] = self.slug
+        deliverable['photo_url'] = self.photo_url
         return deliverable
+
+    def create_slug(self):
+        pre_slug = "%s %s %d"%(self.first_name.lower(), self.last_name.lower(),random.randint(0,10000000))
+        return slugify.slugify(pre_slug)
 
 
 class Tag(BaseModel, db.Model):
@@ -80,6 +103,9 @@ class Tag(BaseModel, db.Model):
         deliverable['text'] = self.text
         deliverable['slug'] = self.slug
         return deliverable
+
+    def create_slug(self):
+        return slugify.slugify("%s %s %s"%(self.originator_slug, self.subject_slug, self.text))
 
 
 class Label(BaseModel, db.Model):
