@@ -22,10 +22,10 @@ https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iv-database
 
 Todo:
 - Get deployment on heroku
-- Figure out how to get working with create react app
+- Figure out how to serve with
+- How do you do diffs, updates, and persistence in the browser??
 - Figure out how to know who knows who (tentative, get everybody who you have tagged)
-- Get all the people you know
-- Get all tags
+
 - Figure out how to do login
   - https://auth0.com/blog/secure-your-react-and-redux-app-with-jwt-authentication//
   - https://pythonhosted.org/Flask-JWT/
@@ -33,6 +33,3 @@ Todo:
   - -https://pythonhosted.org/Flask-OAuth/
   - https://github.com/klokantech/flask-firebase
   - https://blog.miguelgrinberg.com/post/restful-authentication-with-flask
-
-- Connect React app to API
-  -
