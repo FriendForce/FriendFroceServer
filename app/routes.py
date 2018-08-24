@@ -221,6 +221,7 @@ def login():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
     new_account = False
+    print("got account %d and person %d"%(account_id, person_id))
     if account_id is -1:
         (account_id, person_id) = create_account_and_person(data['token'])
         new_account = True
