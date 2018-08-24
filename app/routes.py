@@ -1,4 +1,4 @@
-from flask import jsonify, request, url_for
+from flask import jsonify, request, url_for, send_from_directory, render_template
 from app import app, db
 from app.models import Person, Tag, Label, Account
 import json
@@ -87,12 +87,17 @@ def create_account_and_person(undecoded_token):
 def find_tag_type(tag_text):
     return "generic"
 
-@app.route('/')
-@app.route('/index')
+@app.route('/', defaults={'path':''})
+@app.route('/<path:path>')
+def serve(path):
+    if path[0:4] is not "api":
+        return send_from_directory('./react_app/build/','index.html')
+
+@app.route('/api/index')
 def index():
     return "Hello, UPDATED World!"
 
-@app.route('/create_person/<person_name>')
+@app.route('/api/create_person/<person_name>')
 def create_new_person(person_name):
     person = Person(name=person_name)
     db.session.add(person)
@@ -250,19 +255,19 @@ def find_known_persons():
     return response
 
 
-@app.route('/show_all_persons')
+@app.route('/api/show_all_persons')
 def show_all_persons():
     q = Person.query.all()
     persons = list(map(lambda person: person.json(), q))
     return jsonify(persons)
 
-@app.route('/show_all_tags')
+@app.route('/api/show_all_tags')
 def show_all_tags():
     q = Tag.query.all()
     tags = list(map(lambda tag: tag.json(), q))
     return jsonify(tags)
 
-@app.route('/show_all_labels')
+@app.route('/api/show_all_labels')
 def show_all_labels():
     q = Label.query.all()
     labels = list(map(lambda label: label.json(), q))
