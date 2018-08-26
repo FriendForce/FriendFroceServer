@@ -1,3 +1,16 @@
+TODO Before MVP:
+- Make sure people can see other people's tags
+- Figure out how to serve React
+- Onboarding thing
+
+TODO Before Alpha:
+- Deploy to Heroku
+
+TODO Longer Term:
+- Figure out how to do persistence
+- PICTURES
+
+
 https://realpython.com/flask-by-example-part-1-project-setup/
 
 Homework
@@ -20,16 +33,3 @@ http://www.postgresqltutorial.com/postgresql-foreign-key
 A lot of the flask stuff is from here:
 https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iv-database
 
-Todo:
-- Get deployment on heroku
-- Figure out how to serve with
-- How do you do diffs, updates, and persistence in the browser??
-- Figure out how to know who knows who (tentative, get everybody who you have tagged)
-
-- Figure out how to do login
-  - https://auth0.com/blog/secure-your-react-and-redux-app-with-jwt-authentication//
-  - https://pythonhosted.org/Flask-JWT/
-  - https://www.reddit.com/r/flask/comments/4kicx8/ideas_on_how_to_implement_a_reactjs_flask_login/
-  - -https://pythonhosted.org/Flask-OAuth/
-  - https://github.com/klokantech/flask-firebase
-  - https://blog.miguelgrinberg.com/post/restful-authentication-with-flask
