@@ -1,1 +1,1 @@
-web: gunicorn app:friendforce
+web: gunicorn friendforce:app
