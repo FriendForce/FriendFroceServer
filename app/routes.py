@@ -247,10 +247,12 @@ def find_known_tags():
 def find_known_persons():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
-    user_tags = Tag.query.filter(Tag.originator==person_id).all()
-    ids = set(map(lambda tag:tag.subject, user_tags))
-    ids.add(person_id) # make sure people know about themselves
-    persons = list(map(lambda person:person.to_deliverable(), Person.query.filter(Person.id.in_(ids)).all()))
+    persons = []
+    if account_id > 0:
+        #user_tags = Tag.query.filter(Tag.originator==person_id).all()
+        #ids = set(map(lambda tag:tag.subject, user_tags))
+        #ids.add(person_id) # make sure people know about themselves
+        persons = list(map(lambda person:person.to_deliverable(), Person.query.all()))
     response = jsonify(persons)
     return response
 
