@@ -102,6 +102,7 @@ class Tag(BaseModel, db.Model):
         deliverable['type'] = self.type
         deliverable['text'] = self.text
         deliverable['slug'] = self.slug
+        deliverable['publicity'] = self.publicity
         return deliverable
 
     def create_slug(self):

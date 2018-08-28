@@ -164,6 +164,7 @@ def delete_tag():
         return jsonify('error: no id')
 
 def create_tag(subject_id, originator_id, text, publicity="public"):
+
     tag = Tag()
     tag.originator = originator_id
     tag.originator_slug = Person.query.filter(Person.id==originator_id)[0].slug
@@ -185,14 +186,21 @@ def create_tag_request():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
     # Check if tag already exists - this check should be more elaborate
+    tag = Tag()
+    tag.originator = person_id
+    tag.originator_slug = Person.query.filter(Person.id==person_id)[0].slug
+    new = True
     if 'id' in data:
         q = Tag.query.filter(Tag.slug == data['id'])
         if q.count() > 0:
+            print("updating tag %s"%data['id'])
             tag = q[0]
-            tag.updated = datetime.datetime.now()
+            new = False
     subject = -1
     if 'subject' in data:
         subject = Person.query.filter(Person.slug==data['subject'])[0]
+        tag.subject = subject.id
+        tag.subject_slug = subject.slug
     else:
         print("Error could not create tag becasue no subject")
         return -1
@@ -202,17 +210,25 @@ def create_tag_request():
             text = data['label']
         else:
             text = data['text']
+        tag.text = text
+        label = create_label_from_tag(tag)
+        db.session.add(label)
+        tag.label = label.id
     else:
         print("Error could not create tag becasue no text")
         return -1
     publicity = "public"
     if 'publicity' in data:
         publicity = data['publicity']
-    tag = create_tag(subject.id, person_id, text, publicity=publicity)
-    db.session.add(tag)
+    tag.publicity = publicity
+    tag.slug = tag.create_slug()
+    if new:
+        print("Created tag %s"%tag.slug)
+        db.session.add(tag)
+    else:
+        print("Updated Tag %s"%tag.slug)
     response = jsonify(tag.to_deliverable())
     db.session.commit()
-    print("Created tag")
     return response
 
 @app.route('/api/labels', methods=['POST'])
