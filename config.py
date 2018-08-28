@@ -12,7 +12,7 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     MIGRATION_DIR = os.path.join(basedir, 'migrations')
     FIREBASE_CREDENTIALS=os.path.join(basedir, 'friendforce-25851-firebase-adminsdk-z68w4-583b02825c.json')
-
+    FIREBASE_DUMP=os.path.join(basedir, 'db.json')
 
 class ProductionConfig(Config):
     DEBUG = False

@@ -310,3 +310,9 @@ def update_db():
     db.session.commit()
     response = jsonify('db updated!')
     return response
+
+@app.route('/upload_firebase')
+def upload_firebase():
+    with open(app.config['FIREBASE_DUMP']) as f:
+        firebase = json.loads(f.read())
+    return jsonify(firebase)
