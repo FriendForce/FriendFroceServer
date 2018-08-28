@@ -23,7 +23,8 @@ def create_account_from_token(token):
     db.session.commit()
     return account
 
-def associate_account_with_person(account):
+def associate_account_with_person(account_id):
+    account = Account.query.filter(Account.id==account_id)[0]
     if account.person is not None:
         return account.person
     #For now do naive thing and assume we won't have name collisions
@@ -80,7 +81,7 @@ def create_account_and_person(undecoded_token):
     decoded_token = auth.verify_id_token(undecoded_token)
     account = create_account_from_token(decoded_token)
     account_id = account.id
-    person_id = associate_account_with_person(account)
+    person_id = associate_account_with_person(account_id)
     return (account_id, person_id)
 
 
@@ -226,13 +227,13 @@ def login():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
     new_account = False
-    print("got account %d and person %d"%(account_id, person_id))
     if account_id is -1:
         (account_id, person_id) = create_account_and_person(data['token'])
         new_account = True
     if person_id is None or person_id is -1:
-        print ("Account %d does not have person. Creating one.")
-        person_id = associate_account_with_person(account)
+        print ("Account %d does not have person. Creating one."%account_id)
+        person_id = associate_account_with_person(account_id)
+    print("got account %d and person %d"%(account_id, person_id))
     person = Person.query.filter(Person.id == person_id)[0]
     return jsonify({'person':person.to_deliverable(), 'new_account':new_account})
 
