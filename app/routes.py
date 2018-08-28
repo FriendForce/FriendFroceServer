@@ -35,7 +35,7 @@ def associate_account_with_person(account):
         print("creating a person for the account")
         person = Person()
         person.first_name = names[0]
-        person.last_name = names[end]
+        person.last_name = names[-1]
         person.slug = person.create_slug()
         person.photo_url = account.photo_url
         person.is_user = True
@@ -230,6 +230,9 @@ def login():
     if account_id is -1:
         (account_id, person_id) = create_account_and_person(data['token'])
         new_account = True
+    if person_id is None or person_id is -1:
+        print ("Account %d does not have person. Creating one.")
+        person_id = associate_account_with_person(account)
     person = Person.query.filter(Person.id == person_id)[0]
     return jsonify({'person':person.to_deliverable(), 'new_account':new_account})
 
