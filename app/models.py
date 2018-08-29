@@ -95,6 +95,23 @@ class Tag(BaseModel, db.Model):
     updated = db.Column(db.DateTime(), default=datetime.utcnow)
     label = db.Column(db.Integer, db.ForeignKey('label.id'))
 
+    def initialize(self, text, originator_id, subject_id, originator_slug=None, subject_slug=None, type="generic", publicity="public"):
+        self.text = text
+        self.originator = originator_id
+        self.subject = subject_id
+        if originator_slug is None:
+            self.originator_slug = Person.query.filter(Person.id == self.originator)[0].slug
+        else:
+            self.originator_slug = originator_slug
+        if subject_slug is None:
+            self.subject_slug = Person.query.filter(Person.id == self.subject)[0].slug
+        else:
+            self.subject_slug = subject_slug
+        self.type = type
+        self.publicity = publicity
+        self.slug = self.create_slug()
+        return self
+
     def to_deliverable(self):
         deliverable = {}
         deliverable['subject'] = self.subject_slug

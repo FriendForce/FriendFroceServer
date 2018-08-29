@@ -86,7 +86,36 @@ def create_account_and_person(undecoded_token):
 
 
 def find_tag_type(tag_text):
-    return "generic"
+    tag_type = "generic"
+    sep_char = ","
+    if len(tag_text.split(":")) > 0:
+        tag_pre = tag_text.split(":")[0].lower()
+        tag_post = ":".join(tag_text.split(":")[1:]).lower()
+        tag_type = ""
+    else:
+        return tag_type
+    if tag_pre == "datemetfb":
+        tag_type = tag_type + sep_char + "metadata"
+    if tag_pre == "loc":
+        tag_type = tag_type + sep_char + "location"
+    if tag_pre == "looking for" or tag_pre == "lookingfor":
+        tag_type = tag_type + sep_char + "seeking"
+    if tag_pre == "has":
+        tag_type = tag_type + sep_char + "has"
+    if tag_pre.find("met"):
+        tag_type = tag_type + sep_char + "meeting"
+    if tag_pre.find("date"):
+        tag_type = tag_type + sep_char + "date"
+    if tag_post.find("@"):
+        tag_type = tag_type + sep_char + "has_person"
+    if tag_pre == "via":
+        tag_type = tag_type + sep_char + "how_known"
+    return tag_type
+
+def decode_tag_types(tag_type_string):
+    #note this needs to be coordinated with find_tag_type function for now
+    sep_char = ","
+    return tag_type_string.split(sep_char)
 
 @app.route('/', defaults={'path':''})
 @app.route('/<path:path>')
@@ -128,15 +157,14 @@ def create_person():
     else:
         person.first_name = data['first_name'].title()
         person.last_name = data['last_name'].title()
-    pre_slug = "%s %s %d"%(person.first_name.lower(), person.last_name.lower(),random.randint(0,10000000))
-    person.slug = slugify.slugify(pre_slug)
+    person.slug = person.create_slug()
     #weird thing: need to create the response before committing object?
     db.session.add(person)
 
     #Create a tag indicating who created this person
-    tag = Tag()
+    #tag = Tag()
 
-    db.session.add(tag)
+    #db.session.add(tag)
     response = jsonify(person.to_deliverable())
     db.session.commit()
     return response
@@ -258,8 +286,14 @@ def login():
 def find_known_tags():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
-    user_tags = Tag.query.filter(Tag.originator==person_id or Tag.publicity=='public').all()
-    tags = list(map(lambda tag: tag.to_deliverable(), user_tags))
+    user_tags = Tag.query.filter(Tag.originator==person_id or \
+        Tag.publicity=='public').all()
+    filtered_tags = []
+    # This is an absurd hack - need to change how this works
+    for tag in user_tags:
+        if "metadata" not in decode_tag_types(tag.type):
+            filtered_tags.append(tag)
+    tags = list(map(lambda tag: tag.to_deliverable(), filtered_tags))
     return jsonify(tags)
 
 
@@ -311,8 +345,75 @@ def update_db():
     response = jsonify('db updated!')
     return response
 
+
 @app.route('/upload_firebase')
 def upload_firebase():
     with open(app.config['FIREBASE_DUMP']) as f:
         firebase = json.loads(f.read())
+
+    for (person_id, person) in firebase['persons']['data'].items():
+        new_person = Person()
+        if 'name' not in person:
+            continue
+        new_person.first_name = person['name'].split(' ')[0].title()
+        if len(person['name'].split(' ')) > 1:
+            new_person.last_name = ' '.join(person['name'].split(' ')[1:]).title()
+        else:
+            new_person.last_name = ' '
+        new_person.name = person['name']
+        new_person.slug = new_person.create_slug()
+        if Person.query.filter(Person.first_name==new_person.first_name and \
+            Person.last_name==new_person.last_name).count() is 0:
+            print ("adding person %s"%new_person.slug)
+            db.session.add(new_person)
+            new_tag = Tag()
+            new_tag = new_tag.initialize("Created from firebase", new_person.id,
+                new_person.id, subject_slug=new_person.slug, originator_slug=new_person.slug, type="metadata", publicity="private")
+            db.session.add(new_tag)
+            person['id'] = new_person.id
+        else:
+            person['id'] = Person.query.filter(Person.first_name==new_person.first_name and \
+                Person.last_name==new_person.last_name)[0].id
+    for (tag_id, tag) in firebase['tags']['data'].items():
+         if 'subject' not in tag or tag['subject'] in ['Climbing_Person7','Climbing_person8', '0','1','2', '3']:
+             continue
+         if tag['subject'] == 'Rachel_Zucker3':
+             tag['subject'] = 'Rachel_Zucker1'
+         if tag['subject'] == 'Seth_Berman16':
+             tag['subject'] = 'Seth_Berman10'
+         if tag['subject'] == 'Natalie_Dillon_14':
+             tag['subject'] = 'Natalie_Dillon11'
+         if tag['subject'] == 'Sasha_Sheng':
+             tag['subject'] = 'Sasha_Sheng12'
+         if tag['subject'] == 'Adrienne_Tran':
+             tag['subject'] = 'Adrienne_Tran0'
+         if tag['subject'] == 'Micah_Catlin':
+             tag['subject'] = 'Micah_Catlin14'
+         if tag['subject'] == 'Leo_Polovets9':
+             tag['subject'] = 'Leo_Polovets2'
+         new_tag = Tag()
+         #print(tag)
+         publicity = tag['publicity']
+         type = find_tag_type(tag['label'])
+         originator_id = 25
+
+
+
+         subject_id = firebase['persons']['data'][tag['subject']]['id']
+         new_tag = new_tag.initialize(tag['label'], originator_id, subject_id, publicity=publicity, type=type)
+         print(new_tag.to_deliverable())
+         if publicity == "public" and "metadata" not in decode_tag_types(type) and Label.query.filter(Label.text==tag['label']).count() == 0:
+             print("Creating new label %s" %tag['label'])
+             new_label = Label()
+             new_label.text = tag['label']
+             db.session.add(new_label)
+             new_tag.label = new_label.id
+         if Tag.query.filter(Tag.slug==new_tag.slug).count() == 0:
+             print("adding tag %s"%new_tag.slug)
+             db.session.add(new_tag)
+         else:
+             slug = Tag.query.filter(Tag.slug==new_tag.slug)[0].slug
+             print("tag %s already exists"%slug)
+    db.session.commit()
+
     return jsonify(firebase)
