@@ -222,7 +222,14 @@ def create_tag(subject_id, originator_id, text, publicity="public"):
     tag.slug = tag.create_slug()
     return tag
 
-
+@app.route('/api/account', methods=['POST'])
+def update_account():
+    data = request.get_json() or {}
+    (account_id, person_id) = get_account_and_person(data['token'])
+    account = Account.query.filter(Account.id==account_id)
+    account.update(data['params'])
+    db.session.commit()
+    return(jsonify(account[0].to_deliverable()))
 
 @app.route('/api/tag', methods=['POST'])
 def create_tag_request():
@@ -301,7 +308,10 @@ def login():
         person_id = associate_account_with_person(account_id)
     print("got account %d and person %d"%(account_id, person_id))
     person = Person.query.filter(Person.id == person_id)[0]
-    return jsonify({'person':person.to_deliverable(), 'new_account':new_account})
+    account = Account.query.filter(Account.id == account_id)[0]
+    return jsonify({'person':person.to_deliverable(),
+                    'account':account.to_deliverable(),
+                    'new_account':new_account})
 
 
 @app.route('/api/known_tags', methods=['POST'])

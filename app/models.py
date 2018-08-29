@@ -38,6 +38,9 @@ class Account(BaseModel, db.Model):
     person = db.Column(db.Integer, db.ForeignKey('person.id'))
     created = db.Column(db.DateTime(), default=datetime.utcnow)
     updated = db.Column(db.DateTime(), default=datetime.utcnow)
+    connected_facebook = db.Column(db.Boolean(), default=False)
+    connected_gmail = db.Column(db.Boolean(), default=False)
+    connected_linkedin = db.Column(db.Boolean(), default=False)
 
     def from_firebase_token(self, token):
         self.firebase_user_id = token['uid']
@@ -50,6 +53,14 @@ class Account(BaseModel, db.Model):
     def add_person(self, person_id):
         self.person = person_id
         self.updated = datetime.now()
+
+    def to_deliverable(self):
+        deliverable = {}
+        deliverable['name'] = self.name
+        deliverable['connected_facebook'] = self.connected_facebook
+        deliverable['connected_linkedin'] = self.connected_linkedin
+        deliverable['connected_gmail'] = self.connected_gmail
+        return deliverable
 
 
 
