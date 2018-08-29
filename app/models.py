@@ -100,11 +100,11 @@ class Tag(BaseModel, db.Model):
         self.originator = originator_id
         self.subject = subject_id
         if originator_slug is None:
-            self.originator_slug = Person.query.filter(Person.id == self.originator)[0].slug
+            self.originator_slug = Person.query.filter(Person.id == originator_id)[0].slug
         else:
             self.originator_slug = originator_slug
         if subject_slug is None:
-            self.subject_slug = Person.query.filter(Person.id == self.subject)[0].slug
+            self.subject_slug = Person.query.filter(Person.id == subject_id)[0].slug
         else:
             self.subject_slug = subject_slug
         self.type = type

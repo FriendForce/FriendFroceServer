@@ -137,34 +137,47 @@ def create_new_person(person_name):
 @app.route('/api/person', methods=['POST'])
 def create_person():
     data = request.get_json() or {}
-    (account_id, person_id) = get_account_and_person(data['token'])
+    (account_id, originator_id) = get_account_and_person(data['token'])
     person = Person()
-    print ("got person")
-    print (data)
     #handle an updated person
     if 'id' in data:
         q = Person.query.filter(Person.slug == data['id'])
         if q.count() > 0:
             person = q[0]
             person.updated = datetime.datetime.now()
-
     if 'first_name' not in data and 'last_name' not in data and 'name' not in data:
         return "ERROR: missing required field"
-    person = Person()
     if 'name' in data:
-        person.first_name = data['name'].split(' ')[0].title()
-        person.last_name = data['name'].split(' ')[1].title()
+        first_name = data['name'].split(' ')[0].title()
+        last_name = data['name'].split(' ')[1].title()
+        name = data['name']
     else:
-        person.first_name = data['first_name'].title()
-        person.last_name = data['last_name'].title()
-    person.slug = person.create_slug()
-    #weird thing: need to create the response before committing object?
-    db.session.add(person)
+        first_name = data['first_name'].title()
+        last_name = data['last_name'].title()
+        name = ' '.join(first_name, last_name)
 
-    #Create a tag indicating who created this person
-    #tag = Tag()
-
-    #db.session.add(tag)
+    # For now names will be singular and we'll just note possible duplicates
+    matching_persons = Person.query.filter(Person.name==name or
+        (Person.last_name==last_name and Person.first_name==first_name))
+        #assume we found a dumplicate person
+    if matching_persons.count() > 0:
+        person = matching_persons[0]
+        tag = Tag()
+        tag.initialize('possible duplicate', originator_id, person.id, type="metadata", publicity="private")
+        if Tag.query.filter(Tag.slug==tag.slug).count() == 0:
+            db.session.add(tag)
+        print("adding duplicate person %s"%person.slug)
+    else:
+        person = Person()
+        person.name = name
+        person.first_name = first_name
+        person.last_name = last_name
+        person.slug = person.create_slug()
+        db.session.add(person)
+        tag = Tag()
+        tag.initialize('added', originator_id, person.id, subject_slug=person.slug, type="metadata", publicity="private")
+        db.session.add(tag)
+        print("adding duplicate person %s"%person.slug)
     response = jsonify(person.to_deliverable())
     db.session.commit()
     return response
@@ -172,6 +185,9 @@ def create_person():
 def create_label_from_tag(tag):
     #TODO: more sophisticated things for example
     # Loc: should be a type of label
+    tag_types = decode_tag_types(tag.type)
+    if "metadata" in tag_types:
+        return None
     labels = Label.query.filter(Label.text==tag.text)
     if labels.count() > 0:
         return labels[0]
@@ -218,12 +234,14 @@ def create_tag_request():
     tag.originator = person_id
     tag.originator_slug = Person.query.filter(Person.id==person_id)[0].slug
     new = True
+    # Update tag
     if 'id' in data:
         q = Tag.query.filter(Tag.slug == data['id'])
         if q.count() > 0:
             print("updating tag %s"%data['id'])
             tag = q[0]
             new = False
+    # Someone is creating the same tag
     subject = -1
     if 'subject' in data:
         subject = Person.query.filter(Person.slug==data['subject'])[0]
@@ -239,9 +257,11 @@ def create_tag_request():
         else:
             text = data['text']
         tag.text = text
+        tag.type = find_tag_type(text)
         label = create_label_from_tag(tag)
-        db.session.add(label)
-        tag.label = label.id
+        if label:
+            db.session.add(label)
+            tag.label = label.id
     else:
         print("Error could not create tag becasue no text")
         return -1
@@ -250,6 +270,8 @@ def create_tag_request():
         publicity = data['publicity']
     tag.publicity = publicity
     tag.slug = tag.create_slug()
+    if Tag.query.filter(Tag.slug == tag.slug):
+        new = False
     if new:
         print("Created tag %s"%tag.slug)
         db.session.add(tag)
@@ -344,6 +366,8 @@ def update_db():
     db.session.commit()
     response = jsonify('db updated!')
     return response
+
+
 
 
 @app.route('/upload_firebase')
