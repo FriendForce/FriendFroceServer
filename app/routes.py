@@ -149,7 +149,10 @@ def create_person():
         return "ERROR: missing required field"
     if 'name' in data:
         first_name = data['name'].split(' ')[0].title()
-        last_name = data['name'].split(' ')[1].title()
+        if len(data['name'].split(' ')) > 1:
+            last_name = ' '.join(data['name'].split(' ')[1:]).title()
+        else:
+            last_name=''
         name = data['name']
     else:
         first_name = data['first_name'].title()
