@@ -7,6 +7,8 @@ import random
 import firebase_admin
 from firebase_admin import credentials, auth
 from datetime import datetime
+import pdb
+from sqlalchemy import or_
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
 firebase_admin.initialize_app(cred)
@@ -29,7 +31,7 @@ def associate_account_with_person(account_id):
         return account.person
     #For now do naive thing and assume we won't have name collisions
     names = account.name.split(' ')
-    name_matches = Person.query.filter(Person.first_name==names[0] and Person.last_name==names[end] and Person.is_user==False)
+    name_matches = Person.query.filter(Person.first_name==names[0], Person.last_name==names[end], Person.is_user==False)
     person_id = -1
     if name_matches.count() == 0:
         # Create a person
@@ -37,6 +39,7 @@ def associate_account_with_person(account_id):
         person = Person()
         person.first_name = names[0]
         person.last_name = names[-1]
+        person.name = account.name
         person.slug = person.create_slug()
         person.photo_url = account.photo_url
         person.is_user = True
@@ -44,7 +47,7 @@ def associate_account_with_person(account_id):
         person_id = person.id
         account.add_person(person_id)
         db.session.add(account)
-        db.commit()
+        db.session.commit()
     elif name_matches.count() == 1:
         # Associate account with person
         # TODO make it so you can have multiple accounts associated
@@ -75,6 +78,10 @@ def get_account_and_person(undecoded_token):
         print("found existing account for %s"%decoded_token["email"])
         account_id = account[0].id
         person_id = account[0].person
+        if person_id is None or person_id == -1:
+            person_id = associate_account_with_person(account_id)
+        print("account: %d"%account_id)
+        print("person:%d"%(person_id))
     return (account_id, person_id)
 
 def create_account_and_person(undecoded_token):
@@ -160,8 +167,7 @@ def create_person():
         name = ' '.join(first_name, last_name)
 
     # For now names will be singular and we'll just note possible duplicates
-    matching_persons = Person.query.filter(Person.name==name or
-        (Person.last_name==last_name and Person.first_name==first_name))
+    matching_persons = Person.query.filter(Person.name==name)
         #assume we found a dumplicate person
     if matching_persons.count() > 0:
         person = matching_persons[0]
@@ -321,8 +327,8 @@ def login():
 def find_known_tags():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
-    user_tags = Tag.query.filter(Tag.originator==person_id or \
-        Tag.publicity=='public').all()
+    user_tags = Tag.query.filter(or_(Tag.originator==person_id,
+        Tag.publicity=='public')).all()
     filtered_tags = []
     # This is an absurd hack - need to change how this works
     for tag in user_tags:
@@ -389,9 +395,9 @@ def upload_firebase():
         firebase = json.loads(f.read())
 
     for (person_id, person) in firebase['persons']['data'].items():
-        new_person = Person()
         if 'name' not in person:
             continue
+        new_person = Person()
         new_person.first_name = person['name'].split(' ')[0].title()
         if len(person['name'].split(' ')) > 1:
             new_person.last_name = ' '.join(person['name'].split(' ')[1:]).title()
@@ -399,7 +405,9 @@ def upload_firebase():
             new_person.last_name = ' '
         new_person.name = person['name']
         new_person.slug = new_person.create_slug()
-        if Person.query.filter(Person.first_name==new_person.first_name and \
+        #if new_person.first_name == "David":
+        #    pdb.set_trace()
+        if Person.query.filter(Person.first_name==new_person.first_name,
             Person.last_name==new_person.last_name).count() is 0:
             print ("adding person %s"%new_person.slug)
             db.session.add(new_person)
@@ -407,10 +415,13 @@ def upload_firebase():
             new_tag = new_tag.initialize("Created from firebase", new_person.id,
                 new_person.id, subject_slug=new_person.slug, originator_slug=new_person.slug, type="metadata", publicity="private")
             db.session.add(new_tag)
-            person['id'] = new_person.id
+            firebase['persons']['data'][person_id]['id'] = new_person.id
+            firebase['persons']['data'][person_id]['slug'] = new_person.slug
         else:
-            person['id'] = Person.query.filter(Person.first_name==new_person.first_name and \
+            firebase['persons']['data'][person_id]['id'] = Person.query.filter(Person.first_name==new_person.first_name,
                 Person.last_name==new_person.last_name)[0].id
+            firebase['persons']['data'][person_id]['slug'] = Person.query.filter(Person.first_name==new_person.first_name,
+                Person.last_name==new_person.last_name)[0].slug
     for (tag_id, tag) in firebase['tags']['data'].items():
          if 'subject' not in tag or tag['subject'] in ['Climbing_Person7','Climbing_person8', '0','1','2', '3']:
              continue
@@ -432,12 +443,12 @@ def upload_firebase():
          #print(tag)
          publicity = tag['publicity']
          type = find_tag_type(tag['label'])
-         originator_id = 25
-
-
+         originator_id = Person.query.filter(Person.first_name=="Benjamin",
+                                             Person.last_name=="Reinhardt")[0].id
 
          subject_id = firebase['persons']['data'][tag['subject']]['id']
-         new_tag = new_tag.initialize(tag['label'], originator_id, subject_id, publicity=publicity, type=type)
+         subject_slug = firebase['persons']['data'][tag['subject']]['slug']
+         new_tag = new_tag.initialize(tag['label'], originator_id, subject_id, subject_slug=subject_slug, publicity=publicity, type=type)
          print(new_tag.to_deliverable())
          if publicity == "public" and "metadata" not in decode_tag_types(type) and Label.query.filter(Label.text==tag['label']).count() == 0:
              print("Creating new label %s" %tag['label'])
@@ -445,12 +456,14 @@ def upload_firebase():
              new_label.text = tag['label']
              db.session.add(new_label)
              new_tag.label = new_label.id
+         #pdb.set_trace()
          if Tag.query.filter(Tag.slug==new_tag.slug).count() == 0:
              print("adding tag %s"%new_tag.slug)
              db.session.add(new_tag)
          else:
              slug = Tag.query.filter(Tag.slug==new_tag.slug)[0].slug
              print("tag %s already exists"%slug)
+
     db.session.commit()
 
     return jsonify(firebase)
