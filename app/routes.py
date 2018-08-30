@@ -91,38 +91,95 @@ def create_account_and_person(undecoded_token):
     person_id = associate_account_with_person(account_id)
     return (account_id, person_id)
 
+def do_tag_logic(tag):
 
-def find_tag_type(tag_text):
-    tag_type = "generic"
+    '''
+    Need large string of logic based on tag type
+    - If it's a special tag, generall you want to create the label with the prefix
+    - If it has_person - only keep label with specific tag
+    - Default to private if it's a meeting
+    - Default to private if it's a know_person
+    - Default to private if it's a todo
+    - If it's contact info, default to private
+    - If a tag goes from public to private, delete the label
+    - If someone deletes a tag on themselves, make it go to private
+    - Is there any reason to have prefixes be the same? Should probably remove spaces from slugs
+    - If someone searches by labels associated with types (like "todo:") - show them all of them
+    - All specific labels should be private but autosuggest them
+    '''
+    tag_types = decode_tag_types(tag.type)
+    if "personal" in tag_types or "unique" in tag_types:
+        tag.publicity = "private"
+    return tag
+
+def encode_tag_types(tag_types):
     sep_char = ","
-    if len(tag_text.split(":")) > 0:
-        tag_pre = tag_text.split(":")[0].lower()
-        tag_post = ":".join(tag_text.split(":")[1:]).lower()
-        tag_type = ""
-    else:
-        return tag_type
-    if tag_pre == "datemetfb":
-        tag_type = tag_type + sep_char + "metadata"
-    if tag_pre == "loc":
-        tag_type = tag_type + sep_char + "location"
-    if tag_pre == "looking for" or tag_pre == "lookingfor":
-        tag_type = tag_type + sep_char + "seeking"
-    if tag_pre == "has":
-        tag_type = tag_type + sep_char + "has"
-    if tag_pre.find("met"):
-        tag_type = tag_type + sep_char + "meeting"
-    if tag_pre.find("date"):
-        tag_type = tag_type + sep_char + "date"
-    if tag_post.find("@"):
-        tag_type = tag_type + sep_char + "has_person"
-    if tag_pre == "via":
-        tag_type = tag_type + sep_char + "how_known"
-    return tag_type
+    return sep_char.join(tag_types)
 
 def decode_tag_types(tag_type_string):
     #note this needs to be coordinated with find_tag_type function for now
     sep_char = ","
     return tag_type_string.split(sep_char)
+
+def find_tag_type(tag_text):
+    tag_types = set(["generic"])
+    if len(tag_text.split(":")) > 0:
+        tag_pre = "".join(tag_text.split(":")[0].split(" ")).lower()
+        tag_post = ":".join(tag_text.split(":")[1:]).lower()
+    else:
+        return encode_tag_types(tag_types)
+    if tag_pre == "datemetfb":
+        tag_types.add("metadata")
+    if tag_pre == "loc":
+        tag_types.add("location")
+    if tag_pre == "lookingfor" or tag_pre == "lookingfor":
+        tag_types.add("seeking")
+    if tag_pre == "has":
+        tag_types.add("has")
+    if tag_pre.find("met"):
+        tag_types.add("meeting")
+    if tag_pre.find("date"):
+        tag_types.add("date")
+    if tag_pre.find("via"):
+        tag_types.add("how_known")
+        tag_types.add("personal")
+    if tag_pre.find("email"):
+        tag_types.add("contact_info")
+        tag_types.add("email")
+        tag_types.add("unique")
+    if tag_pre == "todo":
+        tag_types.add("todo")
+        tag_types.add("personal")
+    if tag_pre == "nickname":
+        tag_types.add("alias")
+        tag_types.add("unique")
+    if tag_pre == "alias":
+        tag_types.add("alias")
+        tag_types.add("unique")
+    if tag_pre == "website":
+        tag_types.add("website")
+        tag_types.add("unique")
+    if tag_pre == "relationship":
+        tag_types.add("relationship")
+        tag_types.add("personal")
+    if tag_pre == "marriedto":
+        tag_types.add("relationship")
+        tag_types.add("unique")
+    if tag_pre == "engagedto":
+        tag_types.add("relationship")
+        tag_types.add("unique")
+    if tag_pre == "talkabout":
+        tag_types.add("relationship")
+        tag_types.add("personal")
+    #TODO: if you detect an email or phone number in the thing, label it
+    # Maybe do this on the front end
+    #TODO: detect websites and automatically label it.
+    # User verification is important!
+    return encode_tag_types(tag_types)
+
+
+
+
 
 @app.route('/', defaults={'path':''})
 @app.route('/<path:path>')
@@ -195,9 +252,16 @@ def create_label_from_tag(tag):
     #TODO: more sophisticated things for example
     # Loc: should be a type of label
     tag_types = decode_tag_types(tag.type)
-    if "metadata" in tag_types:
+    # Policy for now, people can't create new pre's organically
+    if "metadata" or "unique" in tag_types:
         return None
-    labels = Label.query.filter(Label.text==tag.text)
+    label = Label()
+    label.set_text(tag.text)
+    if "personal" in tag_types:
+        #If it's a personal thing, you want to create the label for just that person
+        #And grab the prefix
+        label.publicity = "private"
+    labels = Label.query.filter(Label.slug==label.slug)
     if labels.count() > 0:
         return labels[0]
     else:
@@ -285,8 +349,10 @@ def create_tag_request():
     if 'publicity' in data:
         publicity = data['publicity']
     tag.publicity = publicity
+    tag = do_tag_logic(tag)
     tag.slug = tag.create_slug()
-    if Tag.query.filter(Tag.slug == tag.slug):
+    
+    if Tag.query.filter(Tag.slug == tag.slug).count() > 0:
         new = False
     if new:
         print("Created tag %s"%tag.slug)
@@ -372,6 +438,10 @@ def show_all_labels():
 
 @app.route('/api/update_db', methods=['POST'])
 def update_db():
+    # TODO: change privacy levels on tags
+    # TODO: make label slugs
+    # TODO: upper label text
+    # TODO: connect tags to labels
     tags_to_update = Tag.query.filter(Tag.originator_slug == None)
     print("number of tags to update originator = %d"%tags_to_update.count())
     for tag in tags_to_update:

@@ -100,8 +100,8 @@ class Tag(BaseModel, db.Model):
     # Should this be here - don't want to hit db when sending out info
     originator_slug = db.Column(db.String())
     subject_slug = db.Column(db.String())
-    type = db.Column(db.String())
-    publicity = db.Column(db.String())
+    type = db.Column(db.String(), default="generic")
+    publicity = db.Column(db.String(), default="public")
     created = db.Column(db.DateTime(), default=datetime.utcnow)
     updated = db.Column(db.DateTime(), default=datetime.utcnow)
     label = db.Column(db.Integer, db.ForeignKey('label.id'))
@@ -142,3 +142,9 @@ class Label(BaseModel, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(), unique=True)
     text = db.Column(db.String(), unique=True)
+    publicity = db.Column(db.String(), default="public")
+    type = db.Column(db.String(), default="generic")
+
+    def set_text(self, text):
+        self.text = text.title()
+        self.slug = slugify.slugify(self.text.lower())
