@@ -31,7 +31,7 @@ def associate_account_with_person(account_id):
         return account.person
     #For now do naive thing and assume we won't have name collisions
     names = account.name.split(' ')
-    name_matches = Person.query.filter(Person.first_name==names[0], Person.last_name==names[end], Person.is_user==False)
+    name_matches = Person.query.filter(Person.first_name==names[0], Person.last_name==names[-1], Person.is_user==False)
     person_id = -1
     if name_matches.count() == 0:
         # Create a person
