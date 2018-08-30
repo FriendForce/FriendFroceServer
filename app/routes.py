@@ -123,7 +123,7 @@ def decode_tag_types(tag_type_string):
 
 def find_tag_type(tag_text):
     tag_types = set(["generic"])
-    if len(tag_text.split(":")) > 0:
+    if len(tag_text.split(":")) > 1:
         tag_pre = "".join(tag_text.split(":")[0].split(" ")).lower()
         tag_post = ":".join(tag_text.split(":")[1:]).lower()
     else:
@@ -136,14 +136,14 @@ def find_tag_type(tag_text):
         tag_types.add("seeking")
     if tag_pre == "has":
         tag_types.add("has")
-    if tag_pre.find("met"):
+    if tag_pre.find("met") >= 0:
         tag_types.add("meeting")
-    if tag_pre.find("date"):
+    if tag_pre.find("date")  >= 0:
         tag_types.add("date")
-    if tag_pre.find("via"):
+    if tag_pre.find("via")  >= 0:
         tag_types.add("how_known")
         tag_types.add("personal")
-    if tag_pre.find("email"):
+    if tag_pre.find("email") >= 0:
         tag_types.add("contact_info")
         tag_types.add("email")
         tag_types.add("unique")
@@ -306,7 +306,6 @@ def update_account():
 
 @app.route('/api/tag', methods=['POST'])
 def create_tag_request():
-    print("got tag create request")
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
     # Check if tag already exists - this check should be more elaborate
@@ -340,6 +339,7 @@ def create_tag_request():
         tag.type = find_tag_type(text)
         label = create_label_from_tag(tag)
         if label:
+            #TODO: Return the label in the response as well.
             db.session.add(label)
             tag.label = label.id
     else:
@@ -351,7 +351,6 @@ def create_tag_request():
     tag.publicity = publicity
     tag = do_tag_logic(tag)
     tag.slug = tag.create_slug()
-    
     if Tag.query.filter(Tag.slug == tag.slug).count() > 0:
         new = False
     if new:
@@ -510,7 +509,6 @@ def upload_firebase():
          if tag['subject'] == 'Leo_Polovets9':
              tag['subject'] = 'Leo_Polovets2'
          new_tag = Tag()
-         #print(tag)
          publicity = tag['publicity']
          type = find_tag_type(tag['label'])
          originator_id = Person.query.filter(Person.first_name=="Benjamin",
