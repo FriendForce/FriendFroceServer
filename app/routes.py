@@ -85,8 +85,11 @@ def get_account_and_person(undecoded_token):
     return (account_id, person_id)
 
 def create_account_and_person(undecoded_token):
+
     decoded_token = auth.verify_id_token(undecoded_token)
     account = create_account_from_token(decoded_token)
+    print("creating account from token")
+    print(token)
     account_id = account.id
     person_id = associate_account_with_person(account_id)
     return (account_id, person_id)
@@ -375,6 +378,7 @@ def login():
     (account_id, person_id) = get_account_and_person(data['token'])
     new_account = False
     if account_id is -1:
+        print("Creating new account")
         (account_id, person_id) = create_account_and_person(data['token'])
         new_account = True
     if person_id is None or person_id is -1:
