@@ -362,6 +362,7 @@ def create_tag_request():
     else:
         print("Updated Tag %s"%tag.slug)
     response = jsonify(tag.to_deliverable())
+        
     db.session.commit()
     return response
 
@@ -374,8 +375,10 @@ def get_labels():
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    print("login triggered")
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
+    print("account id %d, person_id %d"%(account_id, person_id))
     new_account = False
     if account_id is -1:
         print("Creating new account")
