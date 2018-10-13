@@ -126,13 +126,18 @@ def decode_tag_types(tag_type_string):
 
 def find_tag_type(tag_text):
     tag_types = set(["generic"])
+    if tag_text == "had convo":
+        tag_types.add("repeatable")
+    if tag_text == "+1":
+        tag_types.add("repeatable")
+    if tag_text == "-1":
+        tag_types.add("repeatable")
     if len(tag_text.split(":")) > 1:
         tag_pre = "".join(tag_text.split(":")[0].split(" ")).lower()
         tag_post = ":".join(tag_text.split(":")[1:]).lower()
     else:
         return encode_tag_types(tag_types)
-    if tag_text.find("had convo"):
-        tag_types.add("repeatable")
+
     if tag_pre == "datemetfb":
         tag_types.add("metadata")
     if tag_pre == "loc":
@@ -357,7 +362,7 @@ def create_tag_request():
     tag = do_tag_logic(tag)
     tag.slug = tag.create_slug()
     if ("repeatable" in decode_tag_types(tag.type)):
-        tag.slug = tag.slug+str(datetime.utcnow().split(" ")[0])
+        tag.slug = tag.slug+"-".join(str(datetime.utcnow()).split(" "))
 
     if Tag.query.filter(Tag.slug == tag.slug).count() > 0:
         new = False
