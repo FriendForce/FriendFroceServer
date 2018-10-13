@@ -131,6 +131,8 @@ def find_tag_type(tag_text):
         tag_post = ":".join(tag_text.split(":")[1:]).lower()
     else:
         return encode_tag_types(tag_types)
+    if tag_text.find("had convo"):
+        tag_types.add("repeatable")
     if tag_pre == "datemetfb":
         tag_types.add("metadata")
     if tag_pre == "loc":
@@ -354,6 +356,9 @@ def create_tag_request():
     tag.publicity = publicity
     tag = do_tag_logic(tag)
     tag.slug = tag.create_slug()
+    if ("repeatable" in decode_tag_types(tag.type)):
+        tag.slug = tag.slug+str(datetime.utcnow().split(" ")[0])
+
     if Tag.query.filter(Tag.slug == tag.slug).count() > 0:
         new = False
     if new:
@@ -362,7 +367,7 @@ def create_tag_request():
     else:
         print("Updated Tag %s"%tag.slug)
     response = jsonify(tag.to_deliverable())
-        
+
     db.session.commit()
     return response
 
