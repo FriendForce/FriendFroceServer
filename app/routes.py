@@ -23,6 +23,8 @@ def create_account_from_token(token):
     account.updated = datetime.now()
     db.session.add(account)
     db.session.commit()
+    print("account %d from token:" % account.id)
+    print(token)
     return account
 
 def associate_account_with_person(account_id):
@@ -44,10 +46,12 @@ def associate_account_with_person(account_id):
         person.photo_url = account.photo_url
         person.is_user = True
         db.session.add(person)
+        db.session.commit()
         person_id = person.id
         account.add_person(person_id)
         db.session.add(account)
         db.session.commit()
+
     elif name_matches.count() == 1:
         # Associate account with person
         # TODO make it so you can have multiple accounts associated
@@ -58,12 +62,13 @@ def associate_account_with_person(account_id):
         if person.photo_url is None or len(person.photo_url) is 0:
             person.photo_url = account.photo_url
         person.updated = datetime.now()
-
         db.session.add(person)
+        db.session.commit()
         person_id = person.id
         account.add_person(person_id)
         db.session.add(account)
         db.session.commit()
+
     elif name_matches.count() > 1:
         print("Multiple people with same name")
     return person_id
@@ -89,7 +94,7 @@ def create_account_and_person(undecoded_token):
     decoded_token = auth.verify_id_token(undecoded_token)
     account = create_account_from_token(decoded_token)
     print("creating account from token")
-    print(token)
+    print(decoded_token)
     account_id = account.id
     person_id = associate_account_with_person(account_id)
     return (account_id, person_id)
