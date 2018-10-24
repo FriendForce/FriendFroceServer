@@ -9,6 +9,7 @@ from firebase_admin import credentials, auth
 from datetime import datetime
 import pdb
 from sqlalchemy import or_, and_
+from app.special_labels import SPECIAL_LABELS
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
 firebase_admin.initialize_app(cred)
@@ -135,6 +136,7 @@ def decode_tag_types(tag_type_string):
     sep_char = ","
     return tag_type_string.split(sep_char)
 
+
 def find_tag_type(tag_text):
     tag_types = set(["generic"])
     if tag_text == "had convo":
@@ -144,11 +146,15 @@ def find_tag_type(tag_text):
     if tag_text == "-1":
         tag_types.add("repeatable")
     if len(tag_text.split(":")) > 1:
+        tag_types.add("potential-special")
         tag_pre = "".join(tag_text.split(":")[0].split(" ")).lower()
         tag_post = ":".join(tag_text.split(":")[1:]).lower()
     else:
         return encode_tag_types(tag_types)
 
+    if tag_pre in map(lambda label:"".join(label.lower().split(" ")), SPECIAL_LABELS):
+        tag_types.add("special")
+    #Other Special Things
     if tag_pre == "datemetfb":
         tag_types.add("metadata")
     if tag_pre == "loc":
@@ -460,7 +466,24 @@ def get_labels():
                                             ~Tag.type.contains("metadata")))
     private_label_text = list(map(lambda tag: tag.text, private_useful_tags))
     labels_out = public_label_text+private_label_text
-    return jsonify(labels_out)
+
+    # Special label logic
+    special = {}
+    normal = set([])
+    for label in labels_out:
+        split_text = label.split(":")
+        if (len(split_text) > 1 and len(split_text[1]) > 0) and split_text[0] in SPECIAL_LABELS:
+            if split_text[0] in special:
+              special[split_text[0]].add(split_text[1])
+            else:
+              special[split_text[0]]= set([split_text[1]])
+            normal.add(split_text[0]+":")
+        else:
+            normal.add(label)
+    structured_labels_out = {"normal":list(normal), "special":{}}
+    for key in special:
+        structured_labels_out["special"][key] = list(special[key])
+    return jsonify(structured_labels_out)
 
 
 @app.route('/api/login', methods=['POST'])
@@ -600,6 +623,7 @@ def update_db():
                 db.session.commit()
     generic_tags = Tag.query.filter(Tag.type != "metadata")
     for tag in generic_tags:
+
         if len(tag.text.split(":")) == 2 and "Looking" in tag.text:
             tag.text = "Looking For:" + tag.text.split(":")[1].strip()
             tag.label = None
@@ -611,6 +635,7 @@ def update_db():
             labels = create_labels_from_tag(tag)
             if len(labels) > 0:
                 tag.label = labels[0]
+        tag.type = find_tag_type(tag.text)
         db.session.add(tag)
     db.session.commit()
 
