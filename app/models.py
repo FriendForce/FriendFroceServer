@@ -141,10 +141,12 @@ class Label(BaseModel, db.Model):
     __tablename__ = 'label'
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(), unique=True)
-    text = db.Column(db.String(), unique=True)
+    text = db.Column(db.String())
     publicity = db.Column(db.String(), default="public")
     type = db.Column(db.String(), default="generic")
 
+    def create_slug(self):
+        return slugify.slugify(self.text.lower()+"-"+self.type.lower()+"-"+self.publicity)
+
     def set_text(self, text):
         self.text = text.title()
-        self.slug = slugify.slugify(self.text.lower())

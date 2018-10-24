@@ -8,10 +8,16 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from datetime import datetime
 import pdb
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
 firebase_admin.initialize_app(cred)
+
+def condition_label_text(text):
+    chunks = text.split(":")
+    for i, chunk in enumerate(chunks):
+        chunks[i] = chunk.strip().title()
+    return ":".join(chunks)
 
 def create_account_from_token(token):
     account = Account()
@@ -199,8 +205,12 @@ def find_tag_type(tag_text):
 @app.route('/', defaults={'path':''})
 @app.route('/<path:path>')
 def serve(path):
-    if path[0:4] is not "api":
+    print("serving!")
+    print(path)
+    if path[0:3] != "api":
         return send_from_directory('./react_app/build/','index.html')
+    else:
+        return "foo"
 
 @app.route('/api/index')
 def index():
@@ -263,26 +273,82 @@ def create_person():
     db.session.commit()
     return response
 
-def create_label_from_tag(tag):
+def create_labels_from_text(text, publicity="public"):
+    print("creating a label from: " + text)
+    labels = []
+    label = Label()
+    label.set_text(text)
+    label.type = "generic"
+    label.publicity = publicity
+    label_slug = label.create_slug()
+    existing_label = Label.query.filter_by(slug=label_slug)
+    if existing_label.count() > 0:
+        label = existing_label[0]
+    else:
+        label.slug = label_slug
+        db.session.add(label)
+        db.session.flush()
+    labels.append(label.id)
+
+    split_text = text.split(":")
+    if  len(split_text) is 2 and len(split_text[1]) > 0:
+        print("Compound label")
+        type_label = Label()
+        type_label.set_text(split_text[0])
+        type_label.type = "special"
+        type_label.publicity = "public"
+        type_label_slug = type_label.create_slug()
+        existing_type_label = Label.query.filter_by(slug=type_label_slug)
+        if existing_type_label.count() > 0:
+            type_label = existing_type_label[0]
+        else:
+            type_label.slug = type_label_slug
+            db.session.add(type_label)
+            db.session.flush()
+        labels.append(type_label.id)
+
+        modifier_label = Label()
+        modifier_label.set_text(split_text[1])
+        modifier_label.type = split_text[0]
+        modifier_label.publicity = publicity
+        modifier_label_slug = modifier_label.create_slug()
+        existing_modifier_label = Label.query.filter_by(slug=modifier_label_slug)
+        if existing_modifier_label.count() > 0:
+            modifier_label = existing_modifier_label[0]
+        else:
+            modifier_label.slug = modifier_label_slug
+            db.session.add(modifier_label)
+            db.session.flush()
+        labels.append(modifier_label.id)
+    db.session.commit()
+    return labels
+
+
+def create_labels_from_tag(tag):
     #TODO: more sophisticated things for example
     # Loc: should be a type of label
+    print("creating labels from tag")
+    print(tag)
+    labels = []
     tag_types = decode_tag_types(tag.type)
+    print("tag types = ")
+    print(tag_types)
     # Policy for now, people can't create new pre's organically
-    if "metadata" or "unique" in tag_types:
-        return None
-    label = Label()
-    label.set_text(tag.text)
+    if "metadata" in tag_types or "unique" in tag_types:
+        print("metadata or unique in tag types")
+        return labels
+    publicity = "public"
     if "personal" in tag_types:
         #If it's a personal thing, you want to create the label for just that person
         #And grab the prefix
-        label.publicity = "private"
-    labels = Label.query.filter(Label.slug==label.slug)
-    if labels.count() > 0:
-        return labels[0]
-    else:
-        label = Label()
-        label.text = tag.text
-        return label
+        publicity = "private"
+    if tag.publicity == "private":
+
+        publicity = "private"
+    print("creating a private label")
+    print("about to create labels from " + tag.text)
+    labels = create_labels_from_text(tag.text, publicity=publicity)
+    return labels
 
 
 @app.route('/api/tag/delete', methods=['POST'])
@@ -350,13 +416,8 @@ def create_tag_request():
             text = data['label']
         else:
             text = data['text']
-        tag.text = text
+        tag.text = condition_label_text(text)
         tag.type = find_tag_type(text)
-        label = create_label_from_tag(tag)
-        if label:
-            #TODO: Return the label in the response as well.
-            db.session.add(label)
-            tag.label = label.id
     else:
         print("Error could not create tag becasue no text")
         return -1
@@ -365,10 +426,13 @@ def create_tag_request():
         publicity = data['publicity']
     tag.publicity = publicity
     tag = do_tag_logic(tag)
+    labels = create_labels_from_tag(tag)
+    if len(labels) > 0:
+        #TODO: Return the label in the response as well.
+        tag.label = labels[0]
     tag.slug = tag.create_slug()
     if ("repeatable" in decode_tag_types(tag.type)):
         tag.slug = tag.slug+"-".join(str(datetime.utcnow()).split(" "))
-
     if Tag.query.filter(Tag.slug == tag.slug).count() > 0:
         new = False
     if new:
@@ -377,16 +441,27 @@ def create_tag_request():
     else:
         print("Updated Tag %s"%tag.slug)
     response = jsonify(tag.to_deliverable())
-
     db.session.commit()
     return response
 
 @app.route('/api/labels', methods=['POST'])
 def get_labels():
     data = request.get_json() or {}
-    labels = Label.query.all()
-    labels_out = list(map(lambda label: label.text, labels))
+    (account_id, person_id) = get_account_and_person(data['token'])
+    public_labels = Label.query.filter(and_(Label.publicity=="public",
+                                            Label.type=="generic"))
+    public_label_text = list(map(lambda label:label.text, public_labels))
+    if person_id == -1:
+        return jsonify(public_label_text)
+    #find private labels
+    private_useful_tags = Tag.query.filter(and_(Tag.originator == person_id,
+                                            Tag.publicity == "private",
+                                            ~Tag.type.ilike("unique"),
+                                            ~Tag.type.contains("metadata")))
+    private_label_text = list(map(lambda tag: tag.text, private_useful_tags))
+    labels_out = public_label_text+private_label_text
     return jsonify(labels_out)
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -457,12 +532,28 @@ def show_all_labels():
     labels = list(map(lambda label: label.json(), q))
     return jsonify(labels)
 
-@app.route('/api/update_db', methods=['POST'])
+@app.route('/api/delete_all_labels', methods=['GET', 'POST'])
+def delete_all_labels():
+    tags = Tag.query.all()
+    for tag in tags:
+        tag.label = None
+        db.session.add(tag)
+    db.session.commit()
+    labels = Label.query.all()
+    for label in labels:
+        Label.query.filter(Label.id==label.id).delete()
+
+    db.session.commit()
+    return "All labels deleted"
+
+
+@app.route('/api/update_db', methods=['GET','POST'])
 def update_db():
     # TODO: change privacy levels on tags
     # TODO: make label slugs
     # TODO: upper label text
     # TODO: connect tags to labels
+    '''
     tags_to_update = Tag.query.filter(Tag.originator_slug == None)
     print("number of tags to update originator = %d"%tags_to_update.count())
     for tag in tags_to_update:
@@ -473,7 +564,56 @@ def update_db():
     for tag in tags_to_update:
         tag.subject_slug = Person.query.filter(Person.id == tag.subject)[0].slug
         db.session.add(tag)
+    '''
+    labels_to_update = Label.query.all()
+    for label in labels_to_update:
+        label.type = 'generic'
+        label.publicity = 'public'
+        label.set_text(label.text)
+        slug = label.slug
+        if label.slug is None:
+            slug = label.create_slug()
+            if (Label.query.filter(Label.slug == slug).count() > 0):
+                print("deleting label:%d"%label.id)
+                Label.query.filter(Label.id == label.id).delete()
+            else:
+                label.slug = slug
+                db.session.add(label)
+                db.session.commit()
+
+        if len(label.text.split(":")) > 1 and len(label.text.split(":")[1])>0:
+            # Create a new label for
+            new_label = Label()
+            new_label.type = label.text.split(":")[0]
+            new_label.publicity = "public"
+            new_label.set_text(label.text.split(":")[1])
+            slug = new_label.create_slug()
+            if (Label.query.filter(Label.slug == slug).count() == 0):
+                db.session.add(new_label)
+                db.session.commit()
+            else:
+                new_label = Label.query.filter(Label.slug == slug)[0]
+                new_label.type = label.text.split(":")[0]
+                new_label.publicity = "public"
+                new_label.set_text(label.text.split(":")[1])
+                db.session.add(new_label)
+                db.session.commit()
+    generic_tags = Tag.query.filter(Tag.type != "metadata")
+    for tag in generic_tags:
+        if len(tag.text.split(":")) == 2 and "Looking" in tag.text:
+            tag.text = "Looking For:" + tag.text.split(":")[1].strip()
+            tag.label = None
+        tag.text = condition_label_text(tag.text)
+        if tag.subject == None:
+            tag.subject = Person.query.filter(Person.slug==tag.subject_slug)[0].id
+        if tag.label == None:
+            tag.text = tag.text.title()
+            labels = create_labels_from_tag(tag)
+            if len(labels) > 0:
+                tag.label = labels[0]
+        db.session.add(tag)
     db.session.commit()
+
     response = jsonify('db updated!')
     return response
 
@@ -546,7 +686,6 @@ def upload_firebase():
              new_label.text = tag['label']
              db.session.add(new_label)
              new_tag.label = new_label.id
-         #pdb.set_trace()
          if Tag.query.filter(Tag.slug==new_tag.slug).count() == 0:
              print("adding tag %s"%new_tag.slug)
              db.session.add(new_tag)
