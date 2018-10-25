@@ -17,7 +17,7 @@ class Update(Command):
         generic_tags = Tag.query.filter(Tag.type != "metadata")
         for tag in generic_tags:
             if tag.text.split(":")[0] == "Lookingfor":
-                tag.text = "Looking For:" + Tag.text.split(":")[1]
+                tag.text = "Looking For:" + tag.text.split(":")[1]
             if tag.text.split(":")[0] == "null":
                 tag.text = ":".join(tag.text.split(":")[1:])
             tag.type = find_tag_type(tag.text)
