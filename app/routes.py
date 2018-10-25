@@ -138,7 +138,8 @@ def decode_tag_types(tag_type_string):
 
 
 def find_tag_type(tag_text):
-    tag_types = set(["generic"])
+    tag_types = set([])
+    compound_tag = False
     if tag_text == "had convo":
         tag_types.add("repeatable")
     if tag_text == "+1":
@@ -149,7 +150,14 @@ def find_tag_type(tag_text):
         tag_types.add("potential-special")
         tag_pre = "".join(tag_text.split(":")[0].split(" ")).lower()
         tag_post = ":".join(tag_text.split(":")[1:]).lower()
-    else:
+        compound_tag = True
+    if "http" in tag_text.lower():
+        tag_types.add("website")
+        tag_types.add("unique")
+
+    if len(tag_types) is 0:
+        tag_types.add("generic")
+    if compound_tag is False:
         return encode_tag_types(tag_types)
 
     if tag_pre in map(lambda label:"".join(label.lower().split(" ")), SPECIAL_LABELS):
@@ -297,22 +305,8 @@ def create_labels_from_text(text, publicity="public"):
     labels.append(label.id)
 
     split_text = text.split(":")
-    if  len(split_text) is 2 and len(split_text[1]) > 0:
+    if  len(split_text) is 2 and len(split_text[1]) > 0 and split_text[0] in SPECIAL_LABELS:
         print("Compound label")
-        type_label = Label()
-        type_label.set_text(split_text[0])
-        type_label.type = "special"
-        type_label.publicity = "public"
-        type_label_slug = type_label.create_slug()
-        existing_type_label = Label.query.filter_by(slug=type_label_slug)
-        if existing_type_label.count() > 0:
-            type_label = existing_type_label[0]
-        else:
-            type_label.slug = type_label_slug
-            db.session.add(type_label)
-            db.session.flush()
-        labels.append(type_label.id)
-
         modifier_label = Label()
         modifier_label.set_text(split_text[1])
         modifier_label.type = split_text[0]
@@ -333,15 +327,10 @@ def create_labels_from_text(text, publicity="public"):
 def create_labels_from_tag(tag):
     #TODO: more sophisticated things for example
     # Loc: should be a type of label
-    print("creating labels from tag")
-    print(tag)
     labels = []
     tag_types = decode_tag_types(tag.type)
-    print("tag types = ")
-    print(tag_types)
     # Policy for now, people can't create new pre's organically
     if "metadata" in tag_types or "unique" in tag_types:
-        print("metadata or unique in tag types")
         return labels
     publicity = "public"
     if "personal" in tag_types:
@@ -349,10 +338,7 @@ def create_labels_from_tag(tag):
         #And grab the prefix
         publicity = "private"
     if tag.publicity == "private":
-
         publicity = "private"
-    print("creating a private label")
-    print("about to create labels from " + tag.text)
     labels = create_labels_from_text(tag.text, publicity=publicity)
     return labels
 
@@ -462,11 +448,10 @@ def get_labels():
     #find private labels
     private_useful_tags = Tag.query.filter(and_(Tag.originator == person_id,
                                             Tag.publicity == "private",
-                                            ~Tag.type.ilike("unique"),
+                                            ~Tag.type.contains("unique"),
                                             ~Tag.type.contains("metadata")))
     private_label_text = list(map(lambda tag: tag.text, private_useful_tags))
     labels_out = public_label_text+private_label_text
-
     # Special label logic
     special = {}
     normal = set([])
@@ -483,6 +468,7 @@ def get_labels():
     structured_labels_out = {"normal":list(normal), "special":{}}
     for key in special:
         structured_labels_out["special"][key] = list(special[key])
+
     return jsonify(structured_labels_out)
 
 
@@ -588,45 +574,9 @@ def update_db():
         tag.subject_slug = Person.query.filter(Person.id == tag.subject)[0].slug
         db.session.add(tag)
     '''
-    labels_to_update = Label.query.all()
-    for label in labels_to_update:
-        label.type = 'generic'
-        label.publicity = 'public'
-        label.set_text(label.text)
-        slug = label.slug
-        if label.slug is None:
-            slug = label.create_slug()
-            if (Label.query.filter(Label.slug == slug).count() > 0):
-                print("deleting label:%d"%label.id)
-                Label.query.filter(Label.id == label.id).delete()
-            else:
-                label.slug = slug
-                db.session.add(label)
-                db.session.commit()
-
-        if len(label.text.split(":")) > 1 and len(label.text.split(":")[1])>0:
-            # Create a new label for
-            new_label = Label()
-            new_label.type = label.text.split(":")[0]
-            new_label.publicity = "public"
-            new_label.set_text(label.text.split(":")[1])
-            slug = new_label.create_slug()
-            if (Label.query.filter(Label.slug == slug).count() == 0):
-                db.session.add(new_label)
-                db.session.commit()
-            else:
-                new_label = Label.query.filter(Label.slug == slug)[0]
-                new_label.type = label.text.split(":")[0]
-                new_label.publicity = "public"
-                new_label.set_text(label.text.split(":")[1])
-                db.session.add(new_label)
-                db.session.commit()
     generic_tags = Tag.query.filter(Tag.type != "metadata")
     for tag in generic_tags:
-
-        if len(tag.text.split(":")) == 2 and "Looking" in tag.text:
-            tag.text = "Looking For:" + tag.text.split(":")[1].strip()
-            tag.label = None
+        tag.type = find_tag_type(tag.text)
         tag.text = condition_label_text(tag.text)
         if tag.subject == None:
             tag.subject = Person.query.filter(Person.slug==tag.subject_slug)[0].id
@@ -635,7 +585,6 @@ def update_db():
             labels = create_labels_from_tag(tag)
             if len(labels) > 0:
                 tag.label = labels[0]
-        tag.type = find_tag_type(tag.text)
         db.session.add(tag)
     db.session.commit()
 
