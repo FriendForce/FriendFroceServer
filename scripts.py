@@ -1,6 +1,6 @@
 import os
 from flask_script import Manager, Command
-from app.models import Tag, Label
+from app.models import Tag, Label, Person, Account
 from app import app, db
 from app.functions import find_tag_type, condition_label_text, create_labels_from_tag
 
@@ -8,7 +8,6 @@ from app.functions import find_tag_type, condition_label_text, create_labels_fro
 
 
 manager = Manager(app)
-
 class Update(Command):
     def run(self):
         # TODO: change privacy levels on tags
