@@ -16,6 +16,10 @@ class Update(Command):
         # TODO: connect tags to labels
         generic_tags = Tag.query.filter(Tag.type != "metadata")
         for tag in generic_tags:
+            if tag.text.split(":")[0] == "Lookingfor":
+                tag.text = "Looking For:" + Tag.text.split(":")[1]
+            if tag.text.split(":")[0] == "null":
+                tag.text = ":".join(tag.text.split(":")[1:])
             tag.type = find_tag_type(tag.text)
             tag.text = condition_label_text(tag.text)
             if tag.subject == None:

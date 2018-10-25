@@ -11,6 +11,8 @@ SPECIAL_LABELS = [
   "Engaged To",
   "Dating",
   "Friends With",
-  "Email"
-  "Send"
+  "Email",
+  "Send",
+  "Met At",
+  "Saw At"
 ]
