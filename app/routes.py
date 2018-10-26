@@ -8,7 +8,9 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from datetime import datetime
 import pdb
+import os
 from sqlalchemy import or_, and_
+import requests
 from app.special_labels import SPECIAL_LABELS
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
@@ -508,6 +510,20 @@ def find_known_tags():
     tags = list(map(lambda tag: tag.to_deliverable(), filtered_tags))
     return jsonify(tags)
 
+
+@app.route('/api/feedback', methods=['POST'])
+def get_feedback():
+    data = request.get_json() or {}
+    (account_id, person_id) = get_account_and_person(data['token'])
+    feedback = data['feedback']
+    pdb.set_trace()
+    result = requests.post("https://api.mailgun.net/v3/%s/messages"%app.config['MAILGUN_DOMAIN_NAME'],
+            auth=("api", app.config['MAILGUN_API_KEY']),
+            data={"from": "FriendForce <mailgun@%s>"%app.config['MAILGUN_DOMAIN_NAME'],
+                  "to": ["bzreinhardt@gmail.com"],
+                  "subject": "Friendforce Feedback",
+                   "text": "Feedback from account %d:\n%s"%(account_id, feedback)})
+    return("feedback received. thanks!")
 
 @app.route('/api/known_persons', methods=['POST'])
 def find_known_persons():
