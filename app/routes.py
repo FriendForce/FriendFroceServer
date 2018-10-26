@@ -440,6 +440,7 @@ def create_tag_request():
 def get_labels():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
+
     public_labels = Label.query.filter(and_(Label.publicity=="public",
                                             Label.type=="generic"))
     public_label_text = list(map(lambda label:label.text, public_labels))
@@ -468,7 +469,6 @@ def get_labels():
     structured_labels_out = {"normal":list(normal), "special":{}}
     for key in special:
         structured_labels_out["special"][key] = list(special[key])
-
     return jsonify(structured_labels_out)
 
 
