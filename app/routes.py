@@ -516,7 +516,6 @@ def get_feedback():
     data = request.get_json() or {}
     (account_id, person_id) = get_account_and_person(data['token'])
     feedback = data['feedback']
-    pdb.set_trace()
     result = requests.post("https://api.mailgun.net/v3/%s/messages"%app.config['MAILGUN_DOMAIN_NAME'],
             auth=("api", app.config['MAILGUN_API_KEY']),
             data={"from": "FriendForce <mailgun@%s>"%app.config['MAILGUN_DOMAIN_NAME'],
