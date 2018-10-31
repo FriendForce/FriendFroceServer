@@ -253,15 +253,16 @@ def create_person():
     if 'first_name' not in data and 'last_name' not in data and 'name' not in data:
         return "ERROR: missing required field"
     if 'name' in data:
-        first_name = data['name'].split(' ')[0].title()
-        if len(data['name'].split(' ')) > 1:
-            last_name = ' '.join(data['name'].split(' ')[1:]).title()
+        name = data['name'].strip().title()
+        first_name = name.split(' ')[0]
+        if len(name.split(' ')) > 1:
+            last_name = ' '.join(name.split(' ')[1:])
         else:
             last_name=''
-        name = data['name']
+
     else:
-        first_name = data['first_name'].title()
-        last_name = data['last_name'].title()
+        first_name = data['first_name'].strip().title()
+        last_name = data['last_name'].strip().title()
         name = ' '.join(first_name, last_name)
 
     # For now names will be singular and we'll just note possible duplicates
