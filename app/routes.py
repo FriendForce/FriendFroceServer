@@ -433,6 +433,8 @@ def get_labels():
         split_text = label.split(":")
         if (len(split_text) > 1 and len(split_text[1]) > 0) and split_text[0] in SPECIAL_LABELS and "person" not in SPECIAL_LABELS[split_text[0]]["types"]:
           special[split_text[0]].add(split_text[1])
+        else:
+          normal.add(label)
     structured_labels_out = {"normal":list(normal), "special":{}}
     for key in special:
         structured_labels_out["special"][key] = list(special[key])
