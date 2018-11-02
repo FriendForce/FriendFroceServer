@@ -162,52 +162,16 @@ def find_tag_type(tag_text):
     if compound_tag is False:
         return encode_tag_types(tag_types)
 
-    if tag_pre in map(lambda label:"".join(label.lower().split(" ")), SPECIAL_LABELS):
+    if tag_pre in map(lambda label:"".join(label.lower().split(" ")), SPECIAL_LABELS.keys()):
         tag_types.add("special")
+        tag_types.add(tag_pre)
+        #TODO need to match against non exact matches
+        for type in SPECIAL_LABELS[tag_text.split(":")[0]]['types']:
+            tag_types.add(type)
     #Other Special Things
     if tag_pre == "datemetfb":
         tag_types.add("metadata")
-    if tag_pre == "loc":
-        tag_types.add("location")
-    if tag_pre == "lookingfor" or tag_pre == "lookingfor":
-        tag_types.add("seeking")
-    if tag_pre == "has":
-        tag_types.add("has")
-    if tag_pre.find("met") >= 0:
-        tag_types.add("meeting")
-    if tag_pre.find("date")  >= 0:
-        tag_types.add("date")
-    if tag_pre.find("via")  >= 0:
-        tag_types.add("how_known")
-        tag_types.add("personal")
-    if tag_pre.find("email") >= 0:
-        tag_types.add("contact_info")
-        tag_types.add("email")
-        tag_types.add("unique")
-    if tag_pre == "todo":
-        tag_types.add("todo")
-        tag_types.add("personal")
-    if tag_pre == "nickname":
-        tag_types.add("alias")
-        tag_types.add("unique")
-    if tag_pre == "alias":
-        tag_types.add("alias")
-        tag_types.add("unique")
-    if tag_pre == "website":
-        tag_types.add("website")
-        tag_types.add("unique")
-    if tag_pre == "relationship":
-        tag_types.add("relationship")
-        tag_types.add("personal")
-    if tag_pre == "marriedto":
-        tag_types.add("relationship")
-        tag_types.add("unique")
-    if tag_pre == "engagedto":
-        tag_types.add("relationship")
-        tag_types.add("unique")
-    if tag_pre == "talkabout":
-        tag_types.add("relationship")
-        tag_types.add("personal")
+
     #TODO: if you detect an email or phone number in the thing, label it
     # Maybe do this on the front end
     #TODO: detect websites and automatically label it.
@@ -309,7 +273,7 @@ def create_labels_from_text(text, publicity="public"):
     labels.append(label.id)
 
     split_text = text.split(":")
-    if  len(split_text) is 2 and len(split_text[1]) > 0 and split_text[0] in SPECIAL_LABELS:
+    if  len(split_text) is 2 and len(split_text[1]) > 0 and split_text[0] in SPECIAL_LABELS.keys():
         print("Compound label")
         modifier_label = Label()
         modifier_label.set_text(split_text[1])
@@ -460,16 +424,15 @@ def get_labels():
     # Special label logic
     special = {}
     normal = set([])
+    for label in SPECIAL_LABELS.keys():
+        special[label] = set([])
+        if "person" in SPECIAL_LABELS[label]["types"]:
+            special[label].add("person")
+        normal.add(label+":")
     for label in labels_out:
         split_text = label.split(":")
-        if (len(split_text) > 1 and len(split_text[1]) > 0) and split_text[0] in SPECIAL_LABELS:
-            if split_text[0] in special:
-              special[split_text[0]].add(split_text[1])
-            else:
-              special[split_text[0]]= set([split_text[1]])
-            normal.add(split_text[0]+":")
-        else:
-            normal.add(label)
+        if (len(split_text) > 1 and len(split_text[1]) > 0) and split_text[0] in SPECIAL_LABELS and "person" not in SPECIAL_LABELS[split_text[0]]["types"]:
+          special[split_text[0]].add(split_text[1])
     structured_labels_out = {"normal":list(normal), "special":{}}
     for key in special:
         structured_labels_out["special"][key] = list(special[key])
