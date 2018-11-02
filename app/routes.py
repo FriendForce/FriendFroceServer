@@ -269,12 +269,13 @@ def create_person():
     matching_persons = Person.query.filter(Person.name==name)
         #assume we found a dumplicate person
     if matching_persons.count() > 0:
+        #pdb.set_trace()
         person = matching_persons[0]
         tag = Tag()
         tag.initialize('possible duplicate', originator_id, person.id, type="metadata", publicity="private")
         if Tag.query.filter(Tag.slug==tag.slug).count() == 0:
             db.session.add(tag)
-        print("adding duplicate person %s"%person.slug)
+        print("creating a tag to mark %s as a possible duplicate"%person.slug);
     else:
         person = Person()
         person.name = name
@@ -285,7 +286,7 @@ def create_person():
         tag = Tag()
         tag.initialize('added', originator_id, person.id, subject_slug=person.slug, type="metadata", publicity="private")
         db.session.add(tag)
-        print("adding duplicate person %s"%person.slug)
+        print("adding person %s"%person.slug)
     response = jsonify(person.to_deliverable())
     db.session.commit()
     return response
