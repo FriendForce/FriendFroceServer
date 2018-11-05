@@ -1,4 +1,4 @@
-from flask import jsonify, request, url_for, send_from_directory, render_template
+from flask import jsonify, request, url_for, send_from_directory, render_template, Response
 from app import app, db
 from app.models import Person, Tag, Label, Account
 import json
@@ -12,6 +12,7 @@ import os
 from sqlalchemy import or_, and_
 import requests
 from app.special_labels import SPECIAL_LABELS
+
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
 firebase_admin.initialize_app(cred)
@@ -476,6 +477,14 @@ def find_known_tags():
             filtered_tags.append(tag)
     tags = list(map(lambda tag: tag.to_deliverable(), filtered_tags))
     return jsonify(tags)
+
+@app.route('/api/mail', methods=['POST'])
+def process_mail():
+    print(request.form.get("from"))
+    print(request.form.get("subject"))
+    print(request.form.get("body-plain"))
+    resp = Response("ok", status=200, mimetype='application/json')
+    return resp
 
 
 @app.route('/api/feedback', methods=['POST'])
