@@ -405,6 +405,14 @@ def create_tag_request():
     db.session.commit()
     return response
 
+@app.route('/api/fb', methods=['POST'])
+def process_facebook_data():
+    data = request.get_json()
+    print(data)
+    resp = Response("ok", status=200, mimetype='application/json')
+    return resp
+
+
 @app.route('/api/labels', methods=['POST'])
 def get_labels():
     data = request.get_json() or {}

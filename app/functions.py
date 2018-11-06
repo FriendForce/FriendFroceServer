@@ -170,3 +170,17 @@ def create_labels_from_tag(tag):
         publicity = "private"
     labels = create_labels_from_text(tag.text, publicity=publicity)
     return labels
+
+#TODO Create Person
+
+def parse_fb_person(fb_person, creating_account):
+    if fb_person['type'] != 'user':
+        return None
+    # Try to find Person
+
+    #create a uid tag
+    fb_uid = fb_person['uid']
+    #If the photo is legit, add it to the person
+    photo = fb_person['photo']
+
+    fb_non_title_tokens = fb_person['non_title_tokens']
