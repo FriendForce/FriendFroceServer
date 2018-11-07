@@ -219,7 +219,7 @@ def update_tag(tag_id, text, publicity="public", types=[]):
     db.session.commit()
     return tag_id
 
-def create_tag(originator_id, subject_id, text, publicity="public", types=None):
+def create_tag(originator_id, subject_id, text, publicity="public", types=[]):
     #should check if tag exists
     tag = Tag()
     tag.originator = originator_id
@@ -288,8 +288,12 @@ def upload(url, name='', sub_folder=''):
 
 def parse_fb_person(fb_person, creating_account_id):
     if fb_person['type'] != 'user':
+        create_tag(creating_account_id, creating_account_id, fb_person['text'])
+        print("note a person: ")
+        print(fb_person)
         return None
     # Try to find Person
+    #pdb.set_trace()
     photo = fb_person['photo']
     #If the photo is legit, add it to the person
     photo_name = photo.split('?')[0].split('/')[::-1][0]
@@ -302,4 +306,5 @@ def parse_fb_person(fb_person, creating_account_id):
     if 'non_title_tokens' in fb_person:
         fb_non_title_tokens = fb_person['non_title_tokens']
         create_tag(person.id, person.id, 'fb_non_title_tokens:%s'%fb_non_title_tokens, publicity='private', types=['metadata'])
+        create_tag(person.id, person.id, fb_non_title_tokens, types=['uncertain'])
     return person.id

@@ -12,6 +12,7 @@ import os
 from sqlalchemy import or_, and_
 import requests
 from app.special_labels import SPECIAL_LABELS
+import app.functions as functions
 
 
 cred = credentials.Certificate(app.config['FIREBASE_CREDENTIALS'])
@@ -405,12 +406,19 @@ def create_tag_request():
     db.session.commit()
     return response
 
-@app.route('/api/fb', methods=['POST'])
+@app.route('/api/fb_persons', methods=['POST'])
 def process_facebook_data():
     data = request.get_json()
-    print(data)
-    resp = Response("ok", status=200, mimetype='application/json')
-    return resp
+    (account_id, user_person_id) = get_account_and_person(data['token'])
+    persons_out = []
+    for person in data['persons']:
+        person_id = functions.parse_fb_person(person, user_person_id)
+        if not person_id:
+            continue
+        person = Person.query.filter(Person.id==person_id)[0]
+        persons_out.append(person.to_deliverable())
+    response = jsonify(persons_out)
+    return response
 
 
 @app.route('/api/labels', methods=['POST'])
