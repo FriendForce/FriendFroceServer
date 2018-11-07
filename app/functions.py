@@ -1,6 +1,7 @@
 from app.special_labels import SPECIAL_LABELS
 from app.models import Tag, Label, Person, Account
 from app import app, db
+import boto3, urllib.request, os, io, pdb
 
 
 
@@ -172,15 +173,133 @@ def create_labels_from_tag(tag):
     return labels
 
 #TODO Create Person
+def create_person(first_name, last_name, full_name, originator_id, photo_url=''):
+    matching_persons = Person.query.filter(Person.name==full_name)
+        #assume we found a dumplicate person
+    if matching_persons.count() > 0:
+        #pdb.set_trace()
+        person = matching_persons[0]
+        tag = Tag()
+        tag.initialize('possible duplicate', originator_id, person.id, type="metadata", publicity="private")
+        if Tag.query.filter(Tag.slug==tag.slug).count() == 0:
+            db.session.add(tag)
+        if photo_url and not person.photo_url:
+            person.photo_url = photo_url
+            db.session.add(person)
+        print("creating a tag to mark %s as a possible duplicate"%person.slug);
+    else:
+        person = Person()
+        person.name = full_name
+        person.first_name = first_name
+        person.last_name = last_name
+        person.slug = person.create_slug()
+        db.session.add(person)
+        tag = Tag()
+        tag.initialize('added', originator_id, person.id, subject_slug=person.slug, type="metadata", publicity="private")
+        db.session.add(tag)
+        print("adding person %s"%person.slug)
+    db.session.commit()
+    return person
 
-def parse_fb_person(fb_person, creating_account):
+def update_tag(tag_id, text, publicity="public", types=[]):
+    tag = Tag.query.filter(Tag.id==tag_id)[0]
+    tag.text = condition_label_text(text)
+    tag.type = find_tag_type(text)
+    for type in types:
+        tag.type = ','.join([tag.type, type])
+    tag.publicity = publicity
+    tag = do_tag_logic(tag)
+    labels = create_labels_from_tag(tag)
+    if len(labels) > 0:
+        #TODO: Return the label in the response as well.
+        tag.label = labels[0]
+
+    tag.slug = tag.create_slug()
+    db.session.add(tag)
+    db.session.commit()
+    return tag_id
+
+def create_tag(originator_id, subject_id, text, publicity="public", types=None):
+    #should check if tag exists
+    tag = Tag()
+    tag.originator = originator_id
+    tag.originator_slug = Person.query.filter(Person.id==originator_id)[0].slug
+    tag.subject = subject_id
+    tag.subject_slug = Person.query.filter(Person.id==subject_id)[0].slug
+    tag.text = condition_label_text(text)
+    tag.type = find_tag_type(text)
+    for type in types:
+        tag.type = ','.join([tag.type, type])
+    tag.publicity = publicity
+    tag = do_tag_logic(tag)
+    labels = create_labels_from_tag(tag)
+    if len(labels) > 0:
+        #TODO: Return the label in the response as well.
+        tag.label = labels[0]
+
+    tag.slug = tag.create_slug()
+    # check if tag exists
+    existing_tags = Tag.query.filter(Tag.slug==tag.slug)
+    if existing_tags.count() > 0:
+        print("updating tag %s"%tag.slug)
+        return update_tag(existing_tags[0].id, text, publicity=publicity)
+    else:
+        print("creating new tag %s"%tag.slug)
+        db.session.add(tag)
+        db.session.commit()
+        return tag.id
+
+
+def upload(url, name='', sub_folder=''):
+    try:
+        s3 = boto3.client(
+           "s3",
+           aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+           aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
+        )
+        bucket_name = os.environ.get('AWS_BUCKET_NAME')
+
+        file_object = urllib.request.urlopen(url)           # 'Like' a file object
+
+        fp = io.BytesIO(file_object.read())
+        #with open('/tmp/%s'%name, 'rw') as f:
+        #    f.write(file_object)   # Wrap object
+        if not name:
+            name = url.split('/')[::-1][0]
+        #pdb.set_trace()
+
+        if sub_folder:
+            s3_location = '/'.join(['https://s3-us-west-1.amazonaws.com',bucket_name,sub_folder])
+            s3_target = '/'.join([sub_folder,name])
+        else:
+            s3_location = '/'.join(['https://s3-us-west-1.amazonaws.com',bucket_name])
+            s3_target = name
+        s3.upload_fileobj(
+            fp,
+            bucket_name,
+            s3_target,
+            ExtraArgs={'ACL': 'public-read',
+                       'ContentType':'image'}
+        )
+
+        return "{}/{}".format(s3_location, name.replace(" ", "+"))
+    except Exception as error:
+        return error
+
+def parse_fb_person(fb_person, creating_account_id):
     if fb_person['type'] != 'user':
         return None
     # Try to find Person
-
+    photo = fb_person['photo']
+    #If the photo is legit, add it to the person
+    photo_name = photo.split('?')[0].split('/')[::-1][0]
+    photo_url = upload(photo, name=photo_name, sub_folder='profile_photos')
+    person = create_person(fb_person['firstname'],fb_person['lastname'],fb_person['text'], creating_account_id, photo_url=photo_url)
     #create a uid tag
     fb_uid = fb_person['uid']
-    #If the photo is legit, add it to the person
-    photo = fb_person['photo']
-
-    fb_non_title_tokens = fb_person['non_title_tokens']
+    create_tag(person.id, person.id, 'fb_uid', publicity='private', types=['unique', 'metadata'])
+    #Ideally should process these
+    if 'non_title_tokens' in fb_person:
+        fb_non_title_tokens = fb_person['non_title_tokens']
+        create_tag(person.id, person.id, 'fb_non_title_tokens:%s'%fb_non_title_tokens, publicity='private', types=['metadata'])
+    return person.id
