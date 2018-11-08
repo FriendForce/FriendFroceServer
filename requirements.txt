@@ -36,8 +36,6 @@ click==6.7
 clint==0.5.1
 cloudpickle==0.2.1
 colorama==0.3.7
-conda==4.3.11
-conda-build==1.21.3
 configobj==5.0.6
 configparser==3.5.0b2
 contextlib2==0.5.3
