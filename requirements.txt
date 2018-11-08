@@ -18,8 +18,6 @@ backports.ssl-match-hostname==3.4.0.2
 backports.tempfile==1.0rc1
 backports.weakref==1.0rc1
 bcolz==1.0.0
-BeautifulSoup==3.2.1
-beautifulsoup4==4.6.0
 binaryornot==0.4.4
 binstar==0.11.0
 bitarray==0.8.1
