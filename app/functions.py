@@ -118,7 +118,6 @@ def find_tag_type(tag_text):
     return encode_tag_types(tag_types)
 
 def create_labels_from_text(text, publicity="public"):
-    print("creating a label from: " + text)
     labels = []
     label = Label()
     label.set_text(text)
@@ -136,7 +135,6 @@ def create_labels_from_text(text, publicity="public"):
 
     split_text = text.split(":")
     if  len(split_text) is 2 and len(split_text[1]) > 0 and split_text[0] in SPECIAL_LABELS:
-        print("Compound label")
         modifier_label = Label()
         modifier_label.set_text(split_text[1])
         modifier_label.type = split_text[0]
@@ -302,6 +300,7 @@ def parse_fb_person(fb_person, creating_account_id):
     #create a uid tag
     fb_uid = fb_person['uid']
     create_tag(person.id, person.id, 'fb_uid', publicity='private', types=['unique', 'metadata'])
+    create_tag(creating_account_id, person.id, 'Added from facebook', types=['metadata'])
     #Ideally should process these
     if 'non_title_tokens' in fb_person:
         fb_non_title_tokens = fb_person['non_title_tokens']
