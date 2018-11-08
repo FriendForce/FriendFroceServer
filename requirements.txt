@@ -42,7 +42,6 @@ Mako              ==        1.0.7
 MarkupSafe        ==        1.0                       
 marshmallow       ==        2.16.3                    
 msgpack           ==        0.5.6                     
-openssl           ==        1.0.2l                      
 parso             ==        0.3.1                     
 pexpect           ==        4.6.0                     
 pickleshare       ==        0.7.5                     
