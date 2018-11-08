@@ -63,7 +63,6 @@ readline          ==        6.2
 requests          ==        2.19.1                    
 rsa               ==        3.4.2                     
 s3transfer        ==        0.1.13                    
-setuptools        ==        27.2.0                     
 setuptools        ==        40.2.0                    
 six               ==        1.10.0                    
 slugify           ==        0.0.1                     
