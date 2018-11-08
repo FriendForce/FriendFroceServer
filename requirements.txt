@@ -71,4 +71,3 @@ wcwidth           ==        0.1.7
 Werkzeug          ==        0.12.2                    
 wheel             ==        0.29.0                     
 WTForms            ==       2.1                       
-zlib               ==       1.2.8                       
