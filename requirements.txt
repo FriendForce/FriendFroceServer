@@ -64,7 +64,6 @@ setuptools        ==        40.2.0
 six               ==        1.10.0                    
 slugify           ==        0.0.1                     
 SQLAlchemy        ==        1.1.13                    
-tk                ==        8.5.18                      
 traitlets         ==        4.3.2                     
 Unidecode         ==        1.0.22                    
 urllib3           ==        1.23                      
