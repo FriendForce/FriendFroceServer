@@ -192,11 +192,12 @@ def create_person(first_name, last_name, full_name, originator_id, photo_url='')
         person.last_name = last_name
         person.slug = person.create_slug()
         db.session.add(person)
+        db.session.commit()
         tag = Tag()
         tag.initialize('added', originator_id, person.id, subject_slug=person.slug, type="metadata", publicity="private")
         db.session.add(tag)
+        db.session.commit()
         print("adding person %s"%person.slug)
-    db.session.commit()
     return person
 
 def update_tag(tag_id, text, publicity="public", types=[]):
@@ -283,6 +284,124 @@ def upload(url, name='', sub_folder=''):
         return "{}/{}".format(s3_location, name.replace(" ", "+"))
     except Exception as error:
         return error
+
+def parse_linkedin_location(location_string):
+    '''
+    Parses a location string from linkedin
+    '''
+    return "loc:" + location_string
+
+def parse_linkedin_separation(separation_string):
+    '''
+    Parses a separation string from linkedin
+    '''
+    separation_degrees = 0
+    if separation_string is '1st':
+        separation_degrees = 1
+    if separation_string is '2nd':
+        separation_degrees = 2
+    if separation_string is '3rd':
+        separation_degrees = 3
+    return separation_degrees
+
+def parse_linkedin_image(image_string):
+    '''
+    Parses a image string from linkedin
+    '''
+    if len(image_string) > 0:
+        return image_string.split("\"")[1]
+    else:
+        return ''
+
+def parse_linkedin_education(education):
+    '''
+    Parses an education json object from LinkedIn into tags
+    '''
+    tags = []
+    # Do you ever have an education without a school name?4
+    if 'schoolName' in education:
+        school = education['schoolName']
+        tags.append({'label':school, 'publicity':'public', 'types':['school']})
+    else:
+        return []
+    if 'degree' in education:
+        degree_type = education['degree'].split("Degree Name")[1]
+        publicity = 'private'
+        if degree_type.lower() == 'phd' or degree_type.lower() == 'mba':
+            publicity = 'public'
+        tags.append({'label':degree_type, 'publicity':publicity, 'types':['degree']})
+    if 'fieldOfStudy' in education:
+        field_string = education['fieldOfStudy'].split("Field Of Study")[1]
+        fields = field_string.split(",")
+        for field in fields:
+            tags.append({'label':field, 'publicity':'public', 'types':['discipline']})
+    if 'extraDetails' in education:
+        tags.append({'label':"Details about %s: %s"%(degree_type , education['extraDetails']), 'publicity':'private', 'types':['needs processing']})
+    if 'dateRange' in education:
+        tags.append({'label':"At %s from %s"%(school, education['dateRange']), 'publicity':'private', 'types':['date']})
+    return tags
+
+def parse_linkedin_experience(experience):
+    '''
+    Parses an education json object from LinkedIn into tags
+    returns a list of objects to turn into tags with fields private
+    and public
+    '''
+    tags = []
+    if 'company' in experience:
+        company = experience['company']
+    else:
+        return []
+    current = False
+    if experience['locationCurrent'] is True:
+        current = True
+        tags.append({'label':company, 'publicity':'public', 'types':[]})
+    else:
+        tags.append({'label':"ex-"+company, 'publicity':'public', 'types':[]})
+        #TODO:add ex locations for experiences
+    if 'title' in experience:
+        tags.append({'label':experience['title'], 'publicity':'public', 'types':[]})
+    if 'dateRange' in experience:
+        tags.append({'label':"At %s from %s"%(company, experience['dateRange']), 'publicity':'private', 'types':['date']})
+
+    return tags
+
+
+
+
+def parse_linkedin_person(linkedin_person, creating_account_id):
+    name = ''
+    if 'name' in linkedin_person:
+        # Do we need to do something fancier here?
+        name = linkedin_person['name'].strip()
+    else:
+        #If there's not a name you can't do much else
+        return 0
+    image_url = ''
+    if 'image' in linkedin_person:
+        photo_url = parse_linkedin_image(linkedin_person['image'])
+    person = create_person(name.split(" ")[0], " ".join(name.split(" ")[1:]), name, creating_account_id, photo_url=photo_url)
+    if 'contactInfo' in linkedin_person:
+        contact_info_tag_id = create_tag(creating_account_id, person.id, linkedin_person['contactInfo'], publicity="private", types=['metadata'])
+    if 'location' in linkedin_person:
+        loc = parse_linkedin_location(linkedin_person['location'])
+        loc_tag_id = create_tag(creating_account_id, person.id, loc, publicity="public", types=['location'])
+    if 'separation' in linkedin_person:
+        separation = parse_linkedin_separation(linkedin_person['separation'])
+        if separation > 1:
+            sep_tag_id = create_tag(creating_account_id, person.id, 'connection degree:%d'%separation, publicity="private",types=['separation'])
+    if 'education' in linkedin_person:
+        for education in linkedin_person['education']:
+            tags = parse_linkedin_education(education)
+            for tag in tags:
+                create_tag(creating_account_id, person.id, tag['label'],publicity=tag['publicity'],types=tag['types'])
+    if 'experience' in linkedin_person:
+        for experience in linkedin_person['experience']:
+            tags = parse_linkedin_experience(experience)
+            for tag in tags:
+                create_tag(creating_account_id, person.id, tag['label'],publicity=tag['publicity'],types=tag['types'])
+    return person.id
+
 
 def parse_fb_person(fb_person, creating_account_id):
     if fb_person['type'] != 'user':

@@ -530,6 +530,17 @@ def find_known_persons():
     return response
 
 
+@app.route('/api/linkedin', methods=['POST'])
+def add_linkedin_person():
+    print("got linkedin request")
+    data = json.loads(request.data.decode('utf8'))
+    person = data['data']
+    # FOr now it's just Ben
+    functions.parse_linkedin_person(person, 1)
+    return jsonify("Response!")
+
+
+
 @app.route('/api/show_all_persons')
 def show_all_persons():
     q = Person.query.all()
