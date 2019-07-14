@@ -448,7 +448,7 @@ def parse_forwarded_message(mailgun_body):
     from_email = None
     tags = []
     if len(forwarded_email_indices) > 0:
-        forwarded_email_index = forward_email_indices[0]
+        forwarded_email_index = forwarded_email_indices[0]
         #for now only do first forwarded email
         from_name, from_email = parse_from(email_lines[forwarded_email_index+1])
         tags = parse_email_tag_string(email_lines[0])
