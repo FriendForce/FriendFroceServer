@@ -496,9 +496,10 @@ def find_known_tags():
 
 @app.route('/api/mail', methods=['POST'])
 def process_mail():
-    print(request.form.get("from"))
-    print(request.form.get("subject"))
-    print(request.form.get("body-plain"))
+    mailgun_from = request.form.get("from")
+    mailgun_subject = request.form.get("subject")
+    mailgun_body = request.form.get("body-plain")
+    functions.parse_mailgun_email(mailgun_from, mailgun_subject, mailgun_body)
     resp = Response("ok", status=200, mimetype='application/json')
     return resp
 

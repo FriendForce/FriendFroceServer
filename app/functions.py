@@ -5,6 +5,7 @@ import boto3, urllib.request, os, io, pdb
 
 
 
+
 def condition_label_text(text):
     chunks = text.split(":")
     for i, chunk in enumerate(chunks):
@@ -171,11 +172,13 @@ def create_labels_from_tag(tag):
     return labels
 
 #TODO Create Person
+# need to split out into fuzzy search for person
+# need to start making first and last name primary objects
+# need to create fuzzy-match function
 def create_person(first_name, last_name, full_name, originator_id, photo_url=''):
     matching_persons = Person.query.filter(Person.name==full_name)
         #assume we found a dumplicate person
     if matching_persons.count() > 0:
-        #pdb.set_trace()
         person = matching_persons[0]
         tag = Tag()
         tag.initialize('possible duplicate', originator_id, person.id, type="metadata", publicity="private")
@@ -265,7 +268,6 @@ def upload(url, name='', sub_folder=''):
         #    f.write(file_object)   # Wrap object
         if not name:
             name = url.split('/')[::-1][0]
-        #pdb.set_trace()
 
         if sub_folder:
             s3_location = '/'.join(['https://s3-us-west-1.amazonaws.com',bucket_name,sub_folder])
@@ -410,7 +412,6 @@ def parse_fb_person(fb_person, creating_account_id):
         print(fb_person)
         return None
     # Try to find Person
-    #pdb.set_trace()
     photo = fb_person['photo']
     #If the photo is legit, add it to the person
     photo_name = photo.split('?')[0].split('/')[::-1][0]
@@ -426,3 +427,45 @@ def parse_fb_person(fb_person, creating_account_id):
         create_tag(person.id, person.id, 'fb_non_title_tokens:%s'%fb_non_title_tokens, publicity='private', types=['metadata'])
         create_tag(person.id, person.id, fb_non_title_tokens, types=['uncertain'])
     return person.id
+
+def parse_from(from_string):
+    name = from_string.split("<")[0]
+    name = name.strip('\"')
+    name = name.strip('From\:')
+    name = name.strip()
+    email_address = from_string.split("<")[1].split(">")[0]
+    return name, email_address
+
+def parse_email_tag_string(tag_string):
+    tags = tag_string.split(";")
+    tags = [tag.strip() for tag in tags]
+    return tags
+
+def parse_forwarded_message(mailgun_body):
+    email_lines = mailgun_body.split("\n")
+    forward_email_index = [i for i, s in enumerate(email_lines) if 'orwarded' in s][0]
+    #for now only do first forwarded email
+    from_name, from_email = parse_from(email_lines[forward_email_index+1])
+    tags = parse_email_tag_string(email_lines[0])
+    return from_name, from_email, tags
+
+
+def parse_mailgun_email(mailgun_from, mailgun_subject, mailgun_body):
+    print("got email from mailgun")
+    print(mailgun_from)
+    print(mailgun_subject)
+    print(mailgun_body)
+    name, email = parse_from(mailgun_from)
+    from_name, from_email, tags = parse_forwarded_message(mailgun_body)
+
+    # Want to save the email for posterity
+    # Find user who sent email
+    account = Account.query.filter(Account.email==email)
+    if account.count() is not 1:
+        return "Account not found"
+    person = create_person(from_name.split(" ")[0], from_name.split(" ")[-1], from_name, account[0].id)
+    create_tag(account[0].id, person.id, "email:"+from_email)
+    for tag in tags:
+        create_tag(account[0].id, person.id, tag)
+    # Find person who is referred to
+    return None
