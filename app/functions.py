@@ -443,10 +443,15 @@ def parse_email_tag_string(tag_string):
 
 def parse_forwarded_message(mailgun_body):
     email_lines = mailgun_body.split("\n")
-    forward_email_index = [i for i, s in enumerate(email_lines) if 'orwarded' in s][0]
-    #for now only do first forwarded email
-    from_name, from_email = parse_from(email_lines[forward_email_index+1])
-    tags = parse_email_tag_string(email_lines[0])
+    forwarded_email_indices = [i for i, s in enumerate(email_lines) if 'orwarded' in s]
+    from_name = None
+    from_email = None
+    tags = []
+    if len(forwarded_email_indices) > 0:
+        forwarded_email_index = forward_email_indices[0]
+        #for now only do first forwarded email
+        from_name, from_email = parse_from(email_lines[forward_email_index+1])
+        tags = parse_email_tag_string(email_lines[0])
     return from_name, from_email, tags
 
 
@@ -457,7 +462,8 @@ def parse_mailgun_email(mailgun_from, mailgun_subject, mailgun_body):
     print(mailgun_body)
     name, email = parse_from(mailgun_from)
     from_name, from_email, tags = parse_forwarded_message(mailgun_body)
-
+    if not from_name:
+        return "Email not forwarded"
     # Want to save the email for posterity
     # Find user who sent email
     account = Account.query.filter(Account.email==email)
