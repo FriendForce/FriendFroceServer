@@ -63,6 +63,17 @@ class Account(BaseModel, db.Model):
         return deliverable
 
 
+class Website(BaseModel, db.Model):
+    __tablename__= 'website'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String())
+    type = db.Column(db.String())
+    created = db.Column(db.DateTime(), default=datetime.utcnow)
+    raw_html = db.Column(db.String())
+
+
+
+
 
 class Person(BaseModel, db.Model):
     __tablename__ = 'person'
