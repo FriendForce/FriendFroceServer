@@ -15,7 +15,7 @@ decorator            ==     4.3.0
 docutils             ==     0.14                      
 firebase-admin       ==     2.13.0                    
 Flask                ==     0.12.2                    
-Flask-Cors           ==     3.0.6                     
+Flask-Cors           == 3.0.9                     
 Flask-Login          ==     0.4.1                     
 Flask-Migrate        ==     2.1.0                     
 Flask-Script         ==     2.0.5                     
